@@ -1,0 +1,5 @@
+numpy
+pandas
+pyserial
+wordfreq
+# tkinter ships with Python. Keep this file ASCII-only (Windows pip reads it as cp949).

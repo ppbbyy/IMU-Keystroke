@@ -1,0 +1,83 @@
+uid,phase,kind,target,expect,hint,block
+1,intro,info,"입력기를 영문(A)으로 바꾸세요 (한/영 키).
+링: 왼손 검지 중위지골(둘째 마디).
+진행 키(SPACE)는 오른손으로 누릅니다.",,,0
+2,rest,info,"[정지] 왼손 검지를 F 위에 올리고 완전히 멈추세요.
+준비되면 오른손으로 SPACE → 5초간 가만히.",,,0
+3,rest,rest,5,,F 위에서 정지,0
+4,calib,info,[F 보정] 'F'가 뜨면 F를 한 번 누르고 그대로 F 위에 둡니다.,,,0
+5,calib,key,F,f,ㄹ,0
+6,calib,key,F,f,ㄹ,0
+7,calib,key,F,f,ㄹ,0
+8,calib,key,F,f,ㄹ,0
+9,calib,key,F,f,ㄹ,0
+10,calib,key,F,f,ㄹ,0
+11,calib,key,F,f,ㄹ,0
+12,calib,key,F,f,ㄹ,0
+13,calib,key,F,f,ㄹ,0
+14,calib,key,F,f,ㄹ,0
+15,isolated,info,"[개별 키] 표시된 자음 키를 왼손 검지로 누르고 F로 돌아와 멈추세요.
+손가락이 멈추면 다음 글자가 뜹니다. 틀린 항목은 나중에 다시 나옵니다.",,,0
+16,isolated,key,ㅇ,d,D,1
+17,isolated,key,ㄷ,e,E,1
+18,isolated,key,ㅌ,x,X,1
+19,isolated,key,ㄱ,r,R,1
+20,isolated,key,ㅅ,t,T,1
+21,isolated,key,ㅁ,a,A,1
+22,isolated,key,ㅍ,v,V,1
+23,isolated,key,ㅈ,w,W,1
+24,isolated,key,ㄹ,f,F,1
+25,isolated,key,ㅊ,c,C,1
+26,isolated,key,ㅂ,q,Q,1
+27,isolated,key,ㅋ,z,Z,1
+28,isolated,key,ㅎ,g,G,1
+29,isolated,key,ㄴ,s,S,1
+30,isolated,key,ㅊ,c,C,2
+31,isolated,key,ㅌ,x,X,2
+32,isolated,key,ㅁ,a,A,2
+33,isolated,key,ㄹ,f,F,2
+34,isolated,key,ㄷ,e,E,2
+35,isolated,key,ㄱ,r,R,2
+36,isolated,key,ㅎ,g,G,2
+37,isolated,key,ㅈ,w,W,2
+38,isolated,key,ㅍ,v,V,2
+39,isolated,key,ㅋ,z,Z,2
+40,isolated,key,ㅂ,q,Q,2
+41,isolated,key,ㄴ,s,S,2
+42,isolated,key,ㅅ,t,T,2
+43,isolated,key,ㅇ,d,D,2
+44,isolated,key,ㅌ,x,X,3
+45,isolated,key,ㅍ,v,V,3
+46,isolated,key,ㅁ,a,A,3
+47,isolated,key,ㅈ,w,W,3
+48,isolated,key,ㅂ,q,Q,3
+49,isolated,key,ㄹ,f,F,3
+50,isolated,key,ㅇ,d,D,3
+51,isolated,key,ㄷ,e,E,3
+52,isolated,key,ㅅ,t,T,3
+53,isolated,key,ㅎ,g,G,3
+54,isolated,key,ㄱ,r,R,3
+55,isolated,key,ㅊ,c,C,3
+56,isolated,key,ㅋ,z,Z,3
+57,isolated,key,ㄴ,s,S,3
+58,continuous,info,"[연속 타이핑] 단어를 평소 속도로: 자음=왼손 검지, 모음과 SPACE=오른손.
+단어마다 F에서 시작하고 끝나면 F로. 틀려도 BackSpace 없이 SPACE까지(나중에 다시 나옴).",,,0
+59,continuous,word,진기,wlsrl ,W L S R L  ␣,1
+60,continuous,word,프로모션,vmfhahtus ,V M F H A H T U S  ␣,2
+61,continuous,word,양털,didxjf ,D I D X J F  ␣,3
+62,continuous,word,고로,rhfh ,R H F H  ␣,4
+63,continuous,word,돼지,ehowl ,E H O W L  ␣,5
+64,continuous,word,지난달,wlsksekf ,W L S K S E K F  ␣,6
+65,continuous,word,것,rjt ,R J T  ␣,7
+66,continuous,word,사양,tkdid ,T K D I D  ␣,8
+67,continuous,word,재소자,wothwk ,W O T H W K  ␣,9
+68,continuous,word,특허,xmrgj ,X M R G J  ␣,10
+69,continuous,word,약화,dirghk ,D I R G H K  ␣,11
+70,continuous,word,픽,vlr ,V L R  ␣,12
+71,continuous,word,방지,qkdwl ,Q K D W L  ␣,13
+72,continuous,word,덜컥,ejfzjr ,E J F Z J R  ␣,14
+73,continuous,word,표결,vyruf ,V Y R U F  ␣,15
+74,rest,info,"[정지] 왼손 검지를 F 위에 올리고 완전히 멈추세요.
+준비되면 오른손으로 SPACE → 5초간 가만히.",,,0
+75,rest,rest,5,,F 위에서 정지,0
+76,outro,info,끝났습니다. 잠시 기다리세요.,,,0

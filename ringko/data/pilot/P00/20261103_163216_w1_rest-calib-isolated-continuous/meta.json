@@ -1,0 +1,74 @@
+{
+  "subject": "P00",
+  "wear": 1,
+  "site": "middle_phalanx",
+  "hand": "left",
+  "finger": "index",
+  "phases": [
+    "rest",
+    "calib",
+    "isolated",
+    "continuous"
+  ],
+  "reps": 3,
+  "n_words": 15,
+  "seed": 2279469050,
+  "keyboard": "",
+  "layout": "dubeolsik",
+  "notes": "",
+  "port": "COM4",
+  "software": "0.1.0",
+  "python": "3.11.9",
+  "platform": "Windows-10-10.0.26200-SP0",
+  "params": {
+    "settle_still_s": 0.3,
+    "settle_gyro_dps": 15.0,
+    "settle_max_s": 4.0,
+    "min_gap_s": 0.5,
+    "key_timeout_s": 5.0,
+    "word_timeout_s": 25.0,
+    "rest_s": 5.0,
+    "rest_gyro_dps": 20.0,
+    "max_attempts": 3
+  },
+  "start": "2026-11-03T16:32:16.296530+09:00",
+  "complete": false,
+  "device": {
+    "fw": "ringko-fw-1",
+    "odr_hz": 238.0,
+    "acc_mg_per_lsb": 0.244,
+    "gyro_mdps_per_lsb": 70.0,
+    "mag_mgauss_per_lsb": 0.14
+  },
+  "end": "2026-11-03T16:41:14.637968+09:00",
+  "ok_by_phase": {
+    "rest": 1,
+    "isolated": 1
+  },
+  "status_counts": {
+    "ok": 2,
+    "wrong": 154,
+    "bad_word": 32,
+    "timeout": 1
+  },
+  "stray_keys": 106,
+  "unsettled_cues": 0,
+  "ime_suspected": false,
+  "device_stats": {
+    "n_imu": 125271,
+    "n_mag": 41917,
+    "n_ping": 538,
+    "duration_s": 547.130397,
+    "rate_hz": 228.95821670094486,
+    "seq_gaps": 0,
+    "bad_lines": 0,
+    "header": {
+      "fw": "ringko-fw-1",
+      "odr_hz": 238.0,
+      "acc_mg_per_lsb": 0.244,
+      "gyro_mdps_per_lsb": 70.0,
+      "mag_mgauss_per_lsb": 0.14
+    },
+    "messages": []
+  }
+}

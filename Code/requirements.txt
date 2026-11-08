@@ -1,0 +1,5 @@
+numpy
+pandas
+pyserial
+wordfreq
+# tkinter ships with Python (Linux: sudo apt install python3-tk). Keep this file ASCII-only: pip on Windows reads it as cp949.
