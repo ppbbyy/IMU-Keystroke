@@ -28,7 +28,7 @@ from ringko.decode import (ConsonantLM, Geometry, Lexicon, RowModel, TimingModel
                            kbest_sequences, rerank_inner, timing_pairs)
 from ringko.features import Augment, detect_presses, isolated_features, word_presses  # noqa: E402
 from ringko.preprocess import WindowClassifier  # noqa: E402
-from ringko.hangul import KEY_ROW, LEFT_KEYS, to_consonant_keys  # noqa: E402
+from ringko.hangul import KEY_ROW, LEFT_KEYS  # noqa: E402
 from ringko.plan import filter_vocab, load_vocab  # noqa: E402
 
 warnings.filterwarnings("ignore")

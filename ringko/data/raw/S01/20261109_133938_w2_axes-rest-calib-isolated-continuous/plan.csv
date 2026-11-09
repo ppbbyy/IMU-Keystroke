@@ -1,0 +1,977 @@
+uid,phase,kind,target,expect,hint,block
+1,intro,info,"입력기를 영문(A)으로 바꾸세요 (한/영 키).
+링: 왼손 검지 중위지골(둘째 마디).
+진행 키(SPACE)는 오른손으로 누릅니다.",,,0
+2,axes,info,"[축 확인 15초] 링 낀 왼손을 키보드에서 떼고, 천천히 여러 방향으로 돌렸다가 1초씩 멈추기를 반복하세요.
+(손목 비틀기, 손등 들기, 손가락 세우기 등. 오른손으로 SPACE를 누르면 시작)",,,0
+3,axes,timed,15,,천천히 돌리고 멈추기,0
+4,rest,info,"[정지] 왼손 검지를 F 위에 올리고 완전히 멈추세요.
+준비되면 오른손으로 SPACE → 5초간 가만히.",,,0
+5,rest,rest,5,,F 위에서 정지,0
+6,calib,info,[F 보정] 'F'가 뜨면 F를 한 번 누르고 그대로 F 위에 둡니다.,,,0
+7,calib,key,F,f,ㄹ,0
+8,calib,key,F,f,ㄹ,0
+9,calib,key,F,f,ㄹ,0
+10,calib,key,F,f,ㄹ,0
+11,calib,key,F,f,ㄹ,0
+12,calib,key,F,f,ㄹ,0
+13,calib,key,F,f,ㄹ,0
+14,calib,key,F,f,ㄹ,0
+15,calib,key,F,f,ㄹ,0
+16,calib,key,F,f,ㄹ,0
+17,isolated,info,"[개별 키] 표시된 자음 키를 왼손 검지로 누르고 F로 돌아와 멈추세요.
+손가락이 멈추면 다음 글자가 뜹니다. 틀린 항목은 나중에 다시 나옵니다.",,,0
+18,isolated,key,ㅂ,q,Q,1
+19,isolated,key,ㅍ,v,V,1
+20,isolated,key,ㅅ,t,T,1
+21,isolated,key,ㄹ,f,F,1
+22,isolated,key,ㅌ,x,X,1
+23,isolated,key,ㅇ,d,D,1
+24,isolated,key,ㄱ,r,R,1
+25,isolated,key,ㅊ,c,C,1
+26,isolated,key,ㅈ,w,W,1
+27,isolated,key,ㅁ,a,A,1
+28,isolated,key,ㅎ,g,G,1
+29,isolated,key,ㄷ,e,E,1
+30,isolated,key,ㅋ,z,Z,1
+31,isolated,key,ㄴ,s,S,1
+32,isolated,key,ㅈ,w,W,2
+33,isolated,key,ㄹ,f,F,2
+34,isolated,key,ㅌ,x,X,2
+35,isolated,key,ㅁ,a,A,2
+36,isolated,key,ㄴ,s,S,2
+37,isolated,key,ㄱ,r,R,2
+38,isolated,key,ㄷ,e,E,2
+39,isolated,key,ㅍ,v,V,2
+40,isolated,key,ㅎ,g,G,2
+41,isolated,key,ㅊ,c,C,2
+42,isolated,key,ㅅ,t,T,2
+43,isolated,key,ㅋ,z,Z,2
+44,isolated,key,ㅇ,d,D,2
+45,isolated,key,ㅂ,q,Q,2
+46,isolated,key,ㅍ,v,V,3
+47,isolated,key,ㅇ,d,D,3
+48,isolated,key,ㄱ,r,R,3
+49,isolated,key,ㄹ,f,F,3
+50,isolated,key,ㅈ,w,W,3
+51,isolated,key,ㅅ,t,T,3
+52,isolated,key,ㄷ,e,E,3
+53,isolated,key,ㅊ,c,C,3
+54,isolated,key,ㅌ,x,X,3
+55,isolated,key,ㅂ,q,Q,3
+56,isolated,key,ㄴ,s,S,3
+57,isolated,key,ㅎ,g,G,3
+58,isolated,key,ㅋ,z,Z,3
+59,isolated,key,ㅁ,a,A,3
+60,isolated,key,ㄱ,r,R,4
+61,isolated,key,ㅌ,x,X,4
+62,isolated,key,ㄹ,f,F,4
+63,isolated,key,ㅎ,g,G,4
+64,isolated,key,ㅇ,d,D,4
+65,isolated,key,ㄴ,s,S,4
+66,isolated,key,ㅋ,z,Z,4
+67,isolated,key,ㄷ,e,E,4
+68,isolated,key,ㅊ,c,C,4
+69,isolated,key,ㅂ,q,Q,4
+70,isolated,key,ㅁ,a,A,4
+71,isolated,key,ㅈ,w,W,4
+72,isolated,key,ㅅ,t,T,4
+73,isolated,key,ㅍ,v,V,4
+74,isolated,key,ㅋ,z,Z,5
+75,isolated,key,ㅇ,d,D,5
+76,isolated,key,ㄱ,r,R,5
+77,isolated,key,ㅎ,g,G,5
+78,isolated,key,ㅂ,q,Q,5
+79,isolated,key,ㄹ,f,F,5
+80,isolated,key,ㅊ,c,C,5
+81,isolated,key,ㅅ,t,T,5
+82,isolated,key,ㅌ,x,X,5
+83,isolated,key,ㄴ,s,S,5
+84,isolated,key,ㅈ,w,W,5
+85,isolated,key,ㅁ,a,A,5
+86,isolated,key,ㄷ,e,E,5
+87,isolated,key,ㅍ,v,V,5
+88,isolated,key,ㅇ,d,D,6
+89,isolated,key,ㄴ,s,S,6
+90,isolated,key,ㅂ,q,Q,6
+91,isolated,key,ㅈ,w,W,6
+92,isolated,key,ㅌ,x,X,6
+93,isolated,key,ㅍ,v,V,6
+94,isolated,key,ㅁ,a,A,6
+95,isolated,key,ㅅ,t,T,6
+96,isolated,key,ㅊ,c,C,6
+97,isolated,key,ㅎ,g,G,6
+98,isolated,key,ㄷ,e,E,6
+99,isolated,key,ㅋ,z,Z,6
+100,isolated,key,ㄹ,f,F,6
+101,isolated,key,ㄱ,r,R,6
+102,isolated,key,ㄴ,s,S,7
+103,isolated,key,ㅋ,z,Z,7
+104,isolated,key,ㅌ,x,X,7
+105,isolated,key,ㄹ,f,F,7
+106,isolated,key,ㅊ,c,C,7
+107,isolated,key,ㄷ,e,E,7
+108,isolated,key,ㅁ,a,A,7
+109,isolated,key,ㄱ,r,R,7
+110,isolated,key,ㅍ,v,V,7
+111,isolated,key,ㅈ,w,W,7
+112,isolated,key,ㅎ,g,G,7
+113,isolated,key,ㅅ,t,T,7
+114,isolated,key,ㅇ,d,D,7
+115,isolated,key,ㅂ,q,Q,7
+116,isolated,key,ㅇ,d,D,8
+117,isolated,key,ㄱ,r,R,8
+118,isolated,key,ㅂ,q,Q,8
+119,isolated,key,ㄷ,e,E,8
+120,isolated,key,ㅁ,a,A,8
+121,isolated,key,ㅌ,x,X,8
+122,isolated,key,ㄹ,f,F,8
+123,isolated,key,ㅍ,v,V,8
+124,isolated,key,ㅊ,c,C,8
+125,isolated,key,ㅈ,w,W,8
+126,isolated,key,ㅅ,t,T,8
+127,isolated,key,ㅋ,z,Z,8
+128,isolated,key,ㅎ,g,G,8
+129,isolated,key,ㄴ,s,S,8
+130,break,info,휴식 — 손을 풀어 주세요 (112/840),,,0
+131,isolated,key,ㄷ,e,E,9
+132,isolated,key,ㅊ,c,C,9
+133,isolated,key,ㅎ,g,G,9
+134,isolated,key,ㅇ,d,D,9
+135,isolated,key,ㅅ,t,T,9
+136,isolated,key,ㅋ,z,Z,9
+137,isolated,key,ㄴ,s,S,9
+138,isolated,key,ㅍ,v,V,9
+139,isolated,key,ㅂ,q,Q,9
+140,isolated,key,ㄹ,f,F,9
+141,isolated,key,ㅌ,x,X,9
+142,isolated,key,ㄱ,r,R,9
+143,isolated,key,ㅁ,a,A,9
+144,isolated,key,ㅈ,w,W,9
+145,isolated,key,ㅅ,t,T,10
+146,isolated,key,ㅂ,q,Q,10
+147,isolated,key,ㅊ,c,C,10
+148,isolated,key,ㅁ,a,A,10
+149,isolated,key,ㅎ,g,G,10
+150,isolated,key,ㄷ,e,E,10
+151,isolated,key,ㅌ,x,X,10
+152,isolated,key,ㅇ,d,D,10
+153,isolated,key,ㄱ,r,R,10
+154,isolated,key,ㅍ,v,V,10
+155,isolated,key,ㅈ,w,W,10
+156,isolated,key,ㄴ,s,S,10
+157,isolated,key,ㅋ,z,Z,10
+158,isolated,key,ㄹ,f,F,10
+159,isolated,key,ㅊ,c,C,11
+160,isolated,key,ㅇ,d,D,11
+161,isolated,key,ㄹ,f,F,11
+162,isolated,key,ㅋ,z,Z,11
+163,isolated,key,ㅅ,t,T,11
+164,isolated,key,ㅎ,g,G,11
+165,isolated,key,ㅌ,x,X,11
+166,isolated,key,ㄷ,e,E,11
+167,isolated,key,ㅁ,a,A,11
+168,isolated,key,ㄱ,r,R,11
+169,isolated,key,ㅂ,q,Q,11
+170,isolated,key,ㅍ,v,V,11
+171,isolated,key,ㅈ,w,W,11
+172,isolated,key,ㄴ,s,S,11
+173,isolated,key,ㄱ,r,R,12
+174,isolated,key,ㅍ,v,V,12
+175,isolated,key,ㅁ,a,A,12
+176,isolated,key,ㅅ,t,T,12
+177,isolated,key,ㄷ,e,E,12
+178,isolated,key,ㅂ,q,Q,12
+179,isolated,key,ㅇ,d,D,12
+180,isolated,key,ㄴ,s,S,12
+181,isolated,key,ㅌ,x,X,12
+182,isolated,key,ㄹ,f,F,12
+183,isolated,key,ㅊ,c,C,12
+184,isolated,key,ㅈ,w,W,12
+185,isolated,key,ㅎ,g,G,12
+186,isolated,key,ㅋ,z,Z,12
+187,isolated,key,ㄹ,f,F,13
+188,isolated,key,ㅊ,c,C,13
+189,isolated,key,ㄷ,e,E,13
+190,isolated,key,ㅅ,t,T,13
+191,isolated,key,ㅂ,q,Q,13
+192,isolated,key,ㅇ,d,D,13
+193,isolated,key,ㅌ,x,X,13
+194,isolated,key,ㅋ,z,Z,13
+195,isolated,key,ㅁ,a,A,13
+196,isolated,key,ㅈ,w,W,13
+197,isolated,key,ㅍ,v,V,13
+198,isolated,key,ㄴ,s,S,13
+199,isolated,key,ㄱ,r,R,13
+200,isolated,key,ㅎ,g,G,13
+201,isolated,key,ㅇ,d,D,14
+202,isolated,key,ㄹ,f,F,14
+203,isolated,key,ㄱ,r,R,14
+204,isolated,key,ㅁ,a,A,14
+205,isolated,key,ㄷ,e,E,14
+206,isolated,key,ㅈ,w,W,14
+207,isolated,key,ㅍ,v,V,14
+208,isolated,key,ㅋ,z,Z,14
+209,isolated,key,ㄴ,s,S,14
+210,isolated,key,ㅊ,c,C,14
+211,isolated,key,ㅌ,x,X,14
+212,isolated,key,ㅂ,q,Q,14
+213,isolated,key,ㅅ,t,T,14
+214,isolated,key,ㅎ,g,G,14
+215,isolated,key,ㄷ,e,E,15
+216,isolated,key,ㅎ,g,G,15
+217,isolated,key,ㄹ,f,F,15
+218,isolated,key,ㄴ,s,S,15
+219,isolated,key,ㅇ,d,D,15
+220,isolated,key,ㄱ,r,R,15
+221,isolated,key,ㅁ,a,A,15
+222,isolated,key,ㅂ,q,Q,15
+223,isolated,key,ㅍ,v,V,15
+224,isolated,key,ㅋ,z,Z,15
+225,isolated,key,ㅈ,w,W,15
+226,isolated,key,ㅌ,x,X,15
+227,isolated,key,ㅅ,t,T,15
+228,isolated,key,ㅊ,c,C,15
+229,isolated,key,ㄴ,s,S,16
+230,isolated,key,ㅎ,g,G,16
+231,isolated,key,ㅇ,d,D,16
+232,isolated,key,ㄹ,f,F,16
+233,isolated,key,ㄷ,e,E,16
+234,isolated,key,ㅈ,w,W,16
+235,isolated,key,ㅍ,v,V,16
+236,isolated,key,ㅅ,t,T,16
+237,isolated,key,ㅋ,z,Z,16
+238,isolated,key,ㅊ,c,C,16
+239,isolated,key,ㄱ,r,R,16
+240,isolated,key,ㅌ,x,X,16
+241,isolated,key,ㅁ,a,A,16
+242,isolated,key,ㅂ,q,Q,16
+243,break,info,휴식 — 손을 풀어 주세요 (224/840),,,0
+244,isolated,key,ㅍ,v,V,17
+245,isolated,key,ㄹ,f,F,17
+246,isolated,key,ㅂ,q,Q,17
+247,isolated,key,ㅋ,z,Z,17
+248,isolated,key,ㅅ,t,T,17
+249,isolated,key,ㅁ,a,A,17
+250,isolated,key,ㄴ,s,S,17
+251,isolated,key,ㅈ,w,W,17
+252,isolated,key,ㅇ,d,D,17
+253,isolated,key,ㄱ,r,R,17
+254,isolated,key,ㅌ,x,X,17
+255,isolated,key,ㄷ,e,E,17
+256,isolated,key,ㅎ,g,G,17
+257,isolated,key,ㅊ,c,C,17
+258,isolated,key,ㄹ,f,F,18
+259,isolated,key,ㅈ,w,W,18
+260,isolated,key,ㅁ,a,A,18
+261,isolated,key,ㅎ,g,G,18
+262,isolated,key,ㅋ,z,Z,18
+263,isolated,key,ㅇ,d,D,18
+264,isolated,key,ㄴ,s,S,18
+265,isolated,key,ㅅ,t,T,18
+266,isolated,key,ㅌ,x,X,18
+267,isolated,key,ㅂ,q,Q,18
+268,isolated,key,ㅊ,c,C,18
+269,isolated,key,ㄱ,r,R,18
+270,isolated,key,ㄷ,e,E,18
+271,isolated,key,ㅍ,v,V,18
+272,isolated,key,ㅊ,c,C,19
+273,isolated,key,ㄴ,s,S,19
+274,isolated,key,ㅂ,q,Q,19
+275,isolated,key,ㅌ,x,X,19
+276,isolated,key,ㄹ,f,F,19
+277,isolated,key,ㅎ,g,G,19
+278,isolated,key,ㅁ,a,A,19
+279,isolated,key,ㅈ,w,W,19
+280,isolated,key,ㄷ,e,E,19
+281,isolated,key,ㅋ,z,Z,19
+282,isolated,key,ㅅ,t,T,19
+283,isolated,key,ㄱ,r,R,19
+284,isolated,key,ㅍ,v,V,19
+285,isolated,key,ㅇ,d,D,19
+286,isolated,key,ㅂ,q,Q,20
+287,isolated,key,ㅋ,z,Z,20
+288,isolated,key,ㄹ,f,F,20
+289,isolated,key,ㅁ,a,A,20
+290,isolated,key,ㅊ,c,C,20
+291,isolated,key,ㄷ,e,E,20
+292,isolated,key,ㅎ,g,G,20
+293,isolated,key,ㄴ,s,S,20
+294,isolated,key,ㅇ,d,D,20
+295,isolated,key,ㅌ,x,X,20
+296,isolated,key,ㅍ,v,V,20
+297,isolated,key,ㅅ,t,T,20
+298,isolated,key,ㅈ,w,W,20
+299,isolated,key,ㄱ,r,R,20
+300,isolated,key,ㅇ,d,D,21
+301,isolated,key,ㅌ,x,X,21
+302,isolated,key,ㅎ,g,G,21
+303,isolated,key,ㄹ,f,F,21
+304,isolated,key,ㄴ,s,S,21
+305,isolated,key,ㅂ,q,Q,21
+306,isolated,key,ㅈ,w,W,21
+307,isolated,key,ㅍ,v,V,21
+308,isolated,key,ㅋ,z,Z,21
+309,isolated,key,ㅅ,t,T,21
+310,isolated,key,ㅊ,c,C,21
+311,isolated,key,ㅁ,a,A,21
+312,isolated,key,ㄷ,e,E,21
+313,isolated,key,ㄱ,r,R,21
+314,isolated,key,ㅍ,v,V,22
+315,isolated,key,ㅅ,t,T,22
+316,isolated,key,ㅁ,a,A,22
+317,isolated,key,ㅂ,q,Q,22
+318,isolated,key,ㄱ,r,R,22
+319,isolated,key,ㅇ,d,D,22
+320,isolated,key,ㅋ,z,Z,22
+321,isolated,key,ㅎ,g,G,22
+322,isolated,key,ㄷ,e,E,22
+323,isolated,key,ㅊ,c,C,22
+324,isolated,key,ㄴ,s,S,22
+325,isolated,key,ㅈ,w,W,22
+326,isolated,key,ㄹ,f,F,22
+327,isolated,key,ㅌ,x,X,22
+328,isolated,key,ㅋ,z,Z,23
+329,isolated,key,ㅁ,a,A,23
+330,isolated,key,ㅇ,d,D,23
+331,isolated,key,ㄴ,s,S,23
+332,isolated,key,ㄷ,e,E,23
+333,isolated,key,ㅂ,q,Q,23
+334,isolated,key,ㅎ,g,G,23
+335,isolated,key,ㅈ,w,W,23
+336,isolated,key,ㄹ,f,F,23
+337,isolated,key,ㄱ,r,R,23
+338,isolated,key,ㅌ,x,X,23
+339,isolated,key,ㅅ,t,T,23
+340,isolated,key,ㅍ,v,V,23
+341,isolated,key,ㅊ,c,C,23
+342,isolated,key,ㅁ,a,A,24
+343,isolated,key,ㅊ,c,C,24
+344,isolated,key,ㄱ,r,R,24
+345,isolated,key,ㄷ,e,E,24
+346,isolated,key,ㅌ,x,X,24
+347,isolated,key,ㅎ,g,G,24
+348,isolated,key,ㅈ,w,W,24
+349,isolated,key,ㅋ,z,Z,24
+350,isolated,key,ㅅ,t,T,24
+351,isolated,key,ㄹ,f,F,24
+352,isolated,key,ㅇ,d,D,24
+353,isolated,key,ㄴ,s,S,24
+354,isolated,key,ㅍ,v,V,24
+355,isolated,key,ㅂ,q,Q,24
+356,break,info,휴식 — 손을 풀어 주세요 (336/840),,,0
+357,isolated,key,ㅋ,z,Z,25
+358,isolated,key,ㄴ,s,S,25
+359,isolated,key,ㅁ,a,A,25
+360,isolated,key,ㅎ,g,G,25
+361,isolated,key,ㄱ,r,R,25
+362,isolated,key,ㅌ,x,X,25
+363,isolated,key,ㅇ,d,D,25
+364,isolated,key,ㄷ,e,E,25
+365,isolated,key,ㅅ,t,T,25
+366,isolated,key,ㄹ,f,F,25
+367,isolated,key,ㅍ,v,V,25
+368,isolated,key,ㅂ,q,Q,25
+369,isolated,key,ㅊ,c,C,25
+370,isolated,key,ㅈ,w,W,25
+371,isolated,key,ㅁ,a,A,26
+372,isolated,key,ㅎ,g,G,26
+373,isolated,key,ㅂ,q,Q,26
+374,isolated,key,ㄷ,e,E,26
+375,isolated,key,ㄴ,s,S,26
+376,isolated,key,ㅍ,v,V,26
+377,isolated,key,ㅊ,c,C,26
+378,isolated,key,ㅋ,z,Z,26
+379,isolated,key,ㅅ,t,T,26
+380,isolated,key,ㄱ,r,R,26
+381,isolated,key,ㄹ,f,F,26
+382,isolated,key,ㅈ,w,W,26
+383,isolated,key,ㅌ,x,X,26
+384,isolated,key,ㅇ,d,D,26
+385,isolated,key,ㅅ,t,T,27
+386,isolated,key,ㅊ,c,C,27
+387,isolated,key,ㅈ,w,W,27
+388,isolated,key,ㄹ,f,F,27
+389,isolated,key,ㅂ,q,Q,27
+390,isolated,key,ㅋ,z,Z,27
+391,isolated,key,ㄱ,r,R,27
+392,isolated,key,ㅍ,v,V,27
+393,isolated,key,ㅎ,g,G,27
+394,isolated,key,ㅌ,x,X,27
+395,isolated,key,ㄷ,e,E,27
+396,isolated,key,ㅇ,d,D,27
+397,isolated,key,ㄴ,s,S,27
+398,isolated,key,ㅁ,a,A,27
+399,isolated,key,ㅈ,w,W,28
+400,isolated,key,ㅎ,g,G,28
+401,isolated,key,ㅋ,z,Z,28
+402,isolated,key,ㅁ,a,A,28
+403,isolated,key,ㅂ,q,Q,28
+404,isolated,key,ㅇ,d,D,28
+405,isolated,key,ㅌ,x,X,28
+406,isolated,key,ㄹ,f,F,28
+407,isolated,key,ㄴ,s,S,28
+408,isolated,key,ㄱ,r,R,28
+409,isolated,key,ㅍ,v,V,28
+410,isolated,key,ㅅ,t,T,28
+411,isolated,key,ㅊ,c,C,28
+412,isolated,key,ㄷ,e,E,28
+413,isolated,key,ㄴ,s,S,29
+414,isolated,key,ㅈ,w,W,29
+415,isolated,key,ㄱ,r,R,29
+416,isolated,key,ㅎ,g,G,29
+417,isolated,key,ㅁ,a,A,29
+418,isolated,key,ㅍ,v,V,29
+419,isolated,key,ㄷ,e,E,29
+420,isolated,key,ㅊ,c,C,29
+421,isolated,key,ㅂ,q,Q,29
+422,isolated,key,ㅇ,d,D,29
+423,isolated,key,ㅌ,x,X,29
+424,isolated,key,ㅅ,t,T,29
+425,isolated,key,ㅋ,z,Z,29
+426,isolated,key,ㄹ,f,F,29
+427,isolated,key,ㅌ,x,X,30
+428,isolated,key,ㅈ,w,W,30
+429,isolated,key,ㄴ,s,S,30
+430,isolated,key,ㅊ,c,C,30
+431,isolated,key,ㅎ,g,G,30
+432,isolated,key,ㅁ,a,A,30
+433,isolated,key,ㅅ,t,T,30
+434,isolated,key,ㄹ,f,F,30
+435,isolated,key,ㅇ,d,D,30
+436,isolated,key,ㄱ,r,R,30
+437,isolated,key,ㅋ,z,Z,30
+438,isolated,key,ㅂ,q,Q,30
+439,isolated,key,ㅍ,v,V,30
+440,isolated,key,ㄷ,e,E,30
+441,isolated,key,ㅍ,v,V,31
+442,isolated,key,ㄴ,s,S,31
+443,isolated,key,ㅈ,w,W,31
+444,isolated,key,ㅊ,c,C,31
+445,isolated,key,ㅁ,a,A,31
+446,isolated,key,ㅂ,q,Q,31
+447,isolated,key,ㅋ,z,Z,31
+448,isolated,key,ㅎ,g,G,31
+449,isolated,key,ㅌ,x,X,31
+450,isolated,key,ㄹ,f,F,31
+451,isolated,key,ㅇ,d,D,31
+452,isolated,key,ㅅ,t,T,31
+453,isolated,key,ㄷ,e,E,31
+454,isolated,key,ㄱ,r,R,31
+455,isolated,key,ㅊ,c,C,32
+456,isolated,key,ㅁ,a,A,32
+457,isolated,key,ㅌ,x,X,32
+458,isolated,key,ㅂ,q,Q,32
+459,isolated,key,ㅅ,t,T,32
+460,isolated,key,ㄷ,e,E,32
+461,isolated,key,ㄱ,r,R,32
+462,isolated,key,ㅋ,z,Z,32
+463,isolated,key,ㅍ,v,V,32
+464,isolated,key,ㅎ,g,G,32
+465,isolated,key,ㅇ,d,D,32
+466,isolated,key,ㄴ,s,S,32
+467,isolated,key,ㅈ,w,W,32
+468,isolated,key,ㄹ,f,F,32
+469,break,info,휴식 — 손을 풀어 주세요 (448/840),,,0
+470,isolated,key,ㅋ,z,Z,33
+471,isolated,key,ㅍ,v,V,33
+472,isolated,key,ㄷ,e,E,33
+473,isolated,key,ㅇ,d,D,33
+474,isolated,key,ㅅ,t,T,33
+475,isolated,key,ㄹ,f,F,33
+476,isolated,key,ㅈ,w,W,33
+477,isolated,key,ㅊ,c,C,33
+478,isolated,key,ㅌ,x,X,33
+479,isolated,key,ㅎ,g,G,33
+480,isolated,key,ㅂ,q,Q,33
+481,isolated,key,ㄱ,r,R,33
+482,isolated,key,ㅁ,a,A,33
+483,isolated,key,ㄴ,s,S,33
+484,isolated,key,ㅈ,w,W,34
+485,isolated,key,ㅁ,a,A,34
+486,isolated,key,ㄴ,s,S,34
+487,isolated,key,ㅊ,c,C,34
+488,isolated,key,ㄱ,r,R,34
+489,isolated,key,ㅍ,v,V,34
+490,isolated,key,ㅇ,d,D,34
+491,isolated,key,ㅎ,g,G,34
+492,isolated,key,ㄷ,e,E,34
+493,isolated,key,ㄹ,f,F,34
+494,isolated,key,ㅂ,q,Q,34
+495,isolated,key,ㅋ,z,Z,34
+496,isolated,key,ㅌ,x,X,34
+497,isolated,key,ㅅ,t,T,34
+498,isolated,key,ㄱ,r,R,35
+499,isolated,key,ㅈ,w,W,35
+500,isolated,key,ㅋ,z,Z,35
+501,isolated,key,ㅍ,v,V,35
+502,isolated,key,ㅂ,q,Q,35
+503,isolated,key,ㅎ,g,G,35
+504,isolated,key,ㅇ,d,D,35
+505,isolated,key,ㅌ,x,X,35
+506,isolated,key,ㄷ,e,E,35
+507,isolated,key,ㅅ,t,T,35
+508,isolated,key,ㄹ,f,F,35
+509,isolated,key,ㅊ,c,C,35
+510,isolated,key,ㄴ,s,S,35
+511,isolated,key,ㅁ,a,A,35
+512,isolated,key,ㅅ,t,T,36
+513,isolated,key,ㅊ,c,C,36
+514,isolated,key,ㅈ,w,W,36
+515,isolated,key,ㄴ,s,S,36
+516,isolated,key,ㅎ,g,G,36
+517,isolated,key,ㄹ,f,F,36
+518,isolated,key,ㄷ,e,E,36
+519,isolated,key,ㅇ,d,D,36
+520,isolated,key,ㅌ,x,X,36
+521,isolated,key,ㄱ,r,R,36
+522,isolated,key,ㅂ,q,Q,36
+523,isolated,key,ㅍ,v,V,36
+524,isolated,key,ㅋ,z,Z,36
+525,isolated,key,ㅁ,a,A,36
+526,isolated,key,ㅇ,d,D,37
+527,isolated,key,ㅌ,x,X,37
+528,isolated,key,ㅁ,a,A,37
+529,isolated,key,ㄷ,e,E,37
+530,isolated,key,ㅋ,z,Z,37
+531,isolated,key,ㅈ,w,W,37
+532,isolated,key,ㅎ,g,G,37
+533,isolated,key,ㄹ,f,F,37
+534,isolated,key,ㅊ,c,C,37
+535,isolated,key,ㄴ,s,S,37
+536,isolated,key,ㄱ,r,R,37
+537,isolated,key,ㅂ,q,Q,37
+538,isolated,key,ㅅ,t,T,37
+539,isolated,key,ㅍ,v,V,37
+540,isolated,key,ㅌ,x,X,38
+541,isolated,key,ㅇ,d,D,38
+542,isolated,key,ㅈ,w,W,38
+543,isolated,key,ㅍ,v,V,38
+544,isolated,key,ㅊ,c,C,38
+545,isolated,key,ㄹ,f,F,38
+546,isolated,key,ㅂ,q,Q,38
+547,isolated,key,ㄴ,s,S,38
+548,isolated,key,ㄱ,r,R,38
+549,isolated,key,ㄷ,e,E,38
+550,isolated,key,ㅎ,g,G,38
+551,isolated,key,ㅁ,a,A,38
+552,isolated,key,ㅅ,t,T,38
+553,isolated,key,ㅋ,z,Z,38
+554,isolated,key,ㅇ,d,D,39
+555,isolated,key,ㅂ,q,Q,39
+556,isolated,key,ㅋ,z,Z,39
+557,isolated,key,ㄴ,s,S,39
+558,isolated,key,ㄷ,e,E,39
+559,isolated,key,ㄹ,f,F,39
+560,isolated,key,ㅁ,a,A,39
+561,isolated,key,ㅈ,w,W,39
+562,isolated,key,ㅊ,c,C,39
+563,isolated,key,ㅎ,g,G,39
+564,isolated,key,ㅍ,v,V,39
+565,isolated,key,ㅅ,t,T,39
+566,isolated,key,ㅌ,x,X,39
+567,isolated,key,ㄱ,r,R,39
+568,isolated,key,ㅅ,t,T,40
+569,isolated,key,ㄹ,f,F,40
+570,isolated,key,ㅊ,c,C,40
+571,isolated,key,ㅋ,z,Z,40
+572,isolated,key,ㅌ,x,X,40
+573,isolated,key,ㅇ,d,D,40
+574,isolated,key,ㅁ,a,A,40
+575,isolated,key,ㄴ,s,S,40
+576,isolated,key,ㅂ,q,Q,40
+577,isolated,key,ㄱ,r,R,40
+578,isolated,key,ㅎ,g,G,40
+579,isolated,key,ㅍ,v,V,40
+580,isolated,key,ㅈ,w,W,40
+581,isolated,key,ㄷ,e,E,40
+582,break,info,휴식 — 손을 풀어 주세요 (560/840),,,0
+583,isolated,key,ㅍ,v,V,41
+584,isolated,key,ㅊ,c,C,41
+585,isolated,key,ㄱ,r,R,41
+586,isolated,key,ㅎ,g,G,41
+587,isolated,key,ㄷ,e,E,41
+588,isolated,key,ㅈ,w,W,41
+589,isolated,key,ㅂ,q,Q,41
+590,isolated,key,ㅇ,d,D,41
+591,isolated,key,ㅌ,x,X,41
+592,isolated,key,ㄴ,s,S,41
+593,isolated,key,ㅋ,z,Z,41
+594,isolated,key,ㄹ,f,F,41
+595,isolated,key,ㅁ,a,A,41
+596,isolated,key,ㅅ,t,T,41
+597,isolated,key,ㅊ,c,C,42
+598,isolated,key,ㅅ,t,T,42
+599,isolated,key,ㄴ,s,S,42
+600,isolated,key,ㅂ,q,Q,42
+601,isolated,key,ㄱ,r,R,42
+602,isolated,key,ㅍ,v,V,42
+603,isolated,key,ㅁ,a,A,42
+604,isolated,key,ㅌ,x,X,42
+605,isolated,key,ㅇ,d,D,42
+606,isolated,key,ㄷ,e,E,42
+607,isolated,key,ㅈ,w,W,42
+608,isolated,key,ㄹ,f,F,42
+609,isolated,key,ㅎ,g,G,42
+610,isolated,key,ㅋ,z,Z,42
+611,isolated,key,ㅈ,w,W,43
+612,isolated,key,ㅎ,g,G,43
+613,isolated,key,ㅍ,v,V,43
+614,isolated,key,ㄹ,f,F,43
+615,isolated,key,ㅌ,x,X,43
+616,isolated,key,ㅅ,t,T,43
+617,isolated,key,ㅊ,c,C,43
+618,isolated,key,ㅂ,q,Q,43
+619,isolated,key,ㅁ,a,A,43
+620,isolated,key,ㅇ,d,D,43
+621,isolated,key,ㄴ,s,S,43
+622,isolated,key,ㅋ,z,Z,43
+623,isolated,key,ㄱ,r,R,43
+624,isolated,key,ㄷ,e,E,43
+625,isolated,key,ㅇ,d,D,44
+626,isolated,key,ㅅ,t,T,44
+627,isolated,key,ㅊ,c,C,44
+628,isolated,key,ㅁ,a,A,44
+629,isolated,key,ㅋ,z,Z,44
+630,isolated,key,ㅂ,q,Q,44
+631,isolated,key,ㅈ,w,W,44
+632,isolated,key,ㄴ,s,S,44
+633,isolated,key,ㅎ,g,G,44
+634,isolated,key,ㅍ,v,V,44
+635,isolated,key,ㄷ,e,E,44
+636,isolated,key,ㄹ,f,F,44
+637,isolated,key,ㅌ,x,X,44
+638,isolated,key,ㄱ,r,R,44
+639,isolated,key,ㅂ,q,Q,45
+640,isolated,key,ㅁ,a,A,45
+641,isolated,key,ㅊ,c,C,45
+642,isolated,key,ㅋ,z,Z,45
+643,isolated,key,ㄱ,r,R,45
+644,isolated,key,ㄹ,f,F,45
+645,isolated,key,ㅍ,v,V,45
+646,isolated,key,ㅅ,t,T,45
+647,isolated,key,ㄷ,e,E,45
+648,isolated,key,ㄴ,s,S,45
+649,isolated,key,ㅇ,d,D,45
+650,isolated,key,ㅌ,x,X,45
+651,isolated,key,ㅈ,w,W,45
+652,isolated,key,ㅎ,g,G,45
+653,isolated,key,ㅅ,t,T,46
+654,isolated,key,ㅊ,c,C,46
+655,isolated,key,ㄹ,f,F,46
+656,isolated,key,ㄷ,e,E,46
+657,isolated,key,ㄴ,s,S,46
+658,isolated,key,ㅎ,g,G,46
+659,isolated,key,ㅈ,w,W,46
+660,isolated,key,ㅍ,v,V,46
+661,isolated,key,ㅁ,a,A,46
+662,isolated,key,ㅂ,q,Q,46
+663,isolated,key,ㄱ,r,R,46
+664,isolated,key,ㅋ,z,Z,46
+665,isolated,key,ㅇ,d,D,46
+666,isolated,key,ㅌ,x,X,46
+667,isolated,key,ㅎ,g,G,47
+668,isolated,key,ㅌ,x,X,47
+669,isolated,key,ㄴ,s,S,47
+670,isolated,key,ㅋ,z,Z,47
+671,isolated,key,ㅇ,d,D,47
+672,isolated,key,ㅁ,a,A,47
+673,isolated,key,ㄱ,r,R,47
+674,isolated,key,ㅂ,q,Q,47
+675,isolated,key,ㅍ,v,V,47
+676,isolated,key,ㅈ,w,W,47
+677,isolated,key,ㅅ,t,T,47
+678,isolated,key,ㅊ,c,C,47
+679,isolated,key,ㄹ,f,F,47
+680,isolated,key,ㄷ,e,E,47
+681,isolated,key,ㄹ,f,F,48
+682,isolated,key,ㅇ,d,D,48
+683,isolated,key,ㅅ,t,T,48
+684,isolated,key,ㄴ,s,S,48
+685,isolated,key,ㅋ,z,Z,48
+686,isolated,key,ㅁ,a,A,48
+687,isolated,key,ㅎ,g,G,48
+688,isolated,key,ㅊ,c,C,48
+689,isolated,key,ㄷ,e,E,48
+690,isolated,key,ㅈ,w,W,48
+691,isolated,key,ㅍ,v,V,48
+692,isolated,key,ㄱ,r,R,48
+693,isolated,key,ㅌ,x,X,48
+694,isolated,key,ㅂ,q,Q,48
+695,break,info,휴식 — 손을 풀어 주세요 (672/840),,,0
+696,isolated,key,ㄱ,r,R,49
+697,isolated,key,ㅁ,a,A,49
+698,isolated,key,ㅅ,t,T,49
+699,isolated,key,ㅋ,z,Z,49
+700,isolated,key,ㅊ,c,C,49
+701,isolated,key,ㄷ,e,E,49
+702,isolated,key,ㄴ,s,S,49
+703,isolated,key,ㅇ,d,D,49
+704,isolated,key,ㅌ,x,X,49
+705,isolated,key,ㅍ,v,V,49
+706,isolated,key,ㅈ,w,W,49
+707,isolated,key,ㅎ,g,G,49
+708,isolated,key,ㅂ,q,Q,49
+709,isolated,key,ㄹ,f,F,49
+710,isolated,key,ㅎ,g,G,50
+711,isolated,key,ㄹ,f,F,50
+712,isolated,key,ㅇ,d,D,50
+713,isolated,key,ㅂ,q,Q,50
+714,isolated,key,ㄷ,e,E,50
+715,isolated,key,ㅁ,a,A,50
+716,isolated,key,ㅋ,z,Z,50
+717,isolated,key,ㄴ,s,S,50
+718,isolated,key,ㄱ,r,R,50
+719,isolated,key,ㅅ,t,T,50
+720,isolated,key,ㅌ,x,X,50
+721,isolated,key,ㅊ,c,C,50
+722,isolated,key,ㅈ,w,W,50
+723,isolated,key,ㅍ,v,V,50
+724,isolated,key,ㅁ,a,A,51
+725,isolated,key,ㅇ,d,D,51
+726,isolated,key,ㅎ,g,G,51
+727,isolated,key,ㅍ,v,V,51
+728,isolated,key,ㅌ,x,X,51
+729,isolated,key,ㄹ,f,F,51
+730,isolated,key,ㅂ,q,Q,51
+731,isolated,key,ㅋ,z,Z,51
+732,isolated,key,ㅅ,t,T,51
+733,isolated,key,ㄴ,s,S,51
+734,isolated,key,ㄷ,e,E,51
+735,isolated,key,ㅊ,c,C,51
+736,isolated,key,ㅈ,w,W,51
+737,isolated,key,ㄱ,r,R,51
+738,isolated,key,ㄷ,e,E,52
+739,isolated,key,ㅅ,t,T,52
+740,isolated,key,ㄴ,s,S,52
+741,isolated,key,ㅌ,x,X,52
+742,isolated,key,ㅎ,g,G,52
+743,isolated,key,ㄹ,f,F,52
+744,isolated,key,ㅊ,c,C,52
+745,isolated,key,ㅍ,v,V,52
+746,isolated,key,ㅁ,a,A,52
+747,isolated,key,ㅂ,q,Q,52
+748,isolated,key,ㅋ,z,Z,52
+749,isolated,key,ㅇ,d,D,52
+750,isolated,key,ㄱ,r,R,52
+751,isolated,key,ㅈ,w,W,52
+752,isolated,key,ㅌ,x,X,53
+753,isolated,key,ㄷ,e,E,53
+754,isolated,key,ㅍ,v,V,53
+755,isolated,key,ㄴ,s,S,53
+756,isolated,key,ㅁ,a,A,53
+757,isolated,key,ㄱ,r,R,53
+758,isolated,key,ㅇ,d,D,53
+759,isolated,key,ㅊ,c,C,53
+760,isolated,key,ㅅ,t,T,53
+761,isolated,key,ㅂ,q,Q,53
+762,isolated,key,ㄹ,f,F,53
+763,isolated,key,ㅋ,z,Z,53
+764,isolated,key,ㅎ,g,G,53
+765,isolated,key,ㅈ,w,W,53
+766,isolated,key,ㅌ,x,X,54
+767,isolated,key,ㅈ,w,W,54
+768,isolated,key,ㅎ,g,G,54
+769,isolated,key,ㅇ,d,D,54
+770,isolated,key,ㅊ,c,C,54
+771,isolated,key,ㄱ,r,R,54
+772,isolated,key,ㄴ,s,S,54
+773,isolated,key,ㄹ,f,F,54
+774,isolated,key,ㅂ,q,Q,54
+775,isolated,key,ㅅ,t,T,54
+776,isolated,key,ㄷ,e,E,54
+777,isolated,key,ㅁ,a,A,54
+778,isolated,key,ㅋ,z,Z,54
+779,isolated,key,ㅍ,v,V,54
+780,isolated,key,ㄷ,e,E,55
+781,isolated,key,ㄱ,r,R,55
+782,isolated,key,ㅎ,g,G,55
+783,isolated,key,ㅁ,a,A,55
+784,isolated,key,ㅈ,w,W,55
+785,isolated,key,ㅇ,d,D,55
+786,isolated,key,ㅅ,t,T,55
+787,isolated,key,ㄴ,s,S,55
+788,isolated,key,ㅍ,v,V,55
+789,isolated,key,ㄹ,f,F,55
+790,isolated,key,ㅂ,q,Q,55
+791,isolated,key,ㅋ,z,Z,55
+792,isolated,key,ㅊ,c,C,55
+793,isolated,key,ㅌ,x,X,55
+794,isolated,key,ㄱ,r,R,56
+795,isolated,key,ㄴ,s,S,56
+796,isolated,key,ㅇ,d,D,56
+797,isolated,key,ㅌ,x,X,56
+798,isolated,key,ㅋ,z,Z,56
+799,isolated,key,ㅁ,a,A,56
+800,isolated,key,ㅎ,g,G,56
+801,isolated,key,ㅅ,t,T,56
+802,isolated,key,ㅂ,q,Q,56
+803,isolated,key,ㄹ,f,F,56
+804,isolated,key,ㅍ,v,V,56
+805,isolated,key,ㅊ,c,C,56
+806,isolated,key,ㄷ,e,E,56
+807,isolated,key,ㅈ,w,W,56
+808,break,info,휴식 — 손을 풀어 주세요 (784/840),,,0
+809,isolated,key,ㅅ,t,T,57
+810,isolated,key,ㄱ,r,R,57
+811,isolated,key,ㄴ,s,S,57
+812,isolated,key,ㅊ,c,C,57
+813,isolated,key,ㄹ,f,F,57
+814,isolated,key,ㅋ,z,Z,57
+815,isolated,key,ㄷ,e,E,57
+816,isolated,key,ㅁ,a,A,57
+817,isolated,key,ㅂ,q,Q,57
+818,isolated,key,ㅌ,x,X,57
+819,isolated,key,ㅈ,w,W,57
+820,isolated,key,ㅍ,v,V,57
+821,isolated,key,ㅇ,d,D,57
+822,isolated,key,ㅎ,g,G,57
+823,isolated,key,ㅂ,q,Q,58
+824,isolated,key,ㄹ,f,F,58
+825,isolated,key,ㅁ,a,A,58
+826,isolated,key,ㅊ,c,C,58
+827,isolated,key,ㅅ,t,T,58
+828,isolated,key,ㅈ,w,W,58
+829,isolated,key,ㅌ,x,X,58
+830,isolated,key,ㅍ,v,V,58
+831,isolated,key,ㄷ,e,E,58
+832,isolated,key,ㅋ,z,Z,58
+833,isolated,key,ㄴ,s,S,58
+834,isolated,key,ㅎ,g,G,58
+835,isolated,key,ㅇ,d,D,58
+836,isolated,key,ㄱ,r,R,58
+837,isolated,key,ㄹ,f,F,59
+838,isolated,key,ㄷ,e,E,59
+839,isolated,key,ㅅ,t,T,59
+840,isolated,key,ㅍ,v,V,59
+841,isolated,key,ㅁ,a,A,59
+842,isolated,key,ㄴ,s,S,59
+843,isolated,key,ㅌ,x,X,59
+844,isolated,key,ㅇ,d,D,59
+845,isolated,key,ㅋ,z,Z,59
+846,isolated,key,ㅊ,c,C,59
+847,isolated,key,ㅂ,q,Q,59
+848,isolated,key,ㅈ,w,W,59
+849,isolated,key,ㅎ,g,G,59
+850,isolated,key,ㄱ,r,R,59
+851,isolated,key,ㄷ,e,E,60
+852,isolated,key,ㅍ,v,V,60
+853,isolated,key,ㅊ,c,C,60
+854,isolated,key,ㅅ,t,T,60
+855,isolated,key,ㅎ,g,G,60
+856,isolated,key,ㅋ,z,Z,60
+857,isolated,key,ㅂ,q,Q,60
+858,isolated,key,ㅌ,x,X,60
+859,isolated,key,ㅈ,w,W,60
+860,isolated,key,ㄱ,r,R,60
+861,isolated,key,ㅁ,a,A,60
+862,isolated,key,ㄹ,f,F,60
+863,isolated,key,ㅇ,d,D,60
+864,isolated,key,ㄴ,s,S,60
+865,continuous,info,"[연속 타이핑] 단어를 평소 속도로: 자음=왼손 검지, 모음과 SPACE=오른손.
+단어마다 F에서 시작하고 끝나면 F로. 틀려도 BackSpace 없이 SPACE까지(나중에 다시 나옴).",,,0
+866,continuous,word,코아,zhdk ,Z H D K  ␣,1
+867,continuous,word,신호탄,tlsghxks ,T L S G H X K S  ␣,2
+868,continuous,word,다이렉트,ekdlfprxm ,E K D L F P R X M  ␣,3
+869,continuous,word,절실히,wjftlfgl ,W J F T L F G L  ␣,4
+870,continuous,word,멋진,ajtwls ,A J T W L S  ␣,5
+871,continuous,word,고통,rhxhd ,R H X H D  ␣,6
+872,continuous,word,인터넷,dlsxjspt ,D L S X J S P T  ␣,7
+873,continuous,word,플라톤,vmffkxhs ,V M F F K X H S  ␣,8
+874,continuous,word,뒷좌석,enltwhktjr ,E N L T W H K T J R  ␣,9
+875,continuous,word,개체,rocp ,R O C P  ␣,10
+876,continuous,word,드레스,emfptm ,E M F P T M  ␣,11
+877,continuous,word,슬로,tmffh ,T M F F H  ␣,12
+878,continuous,word,조세,whtp ,W H T P  ␣,13
+879,continuous,word,위성,dnltjd ,D N L T J D  ␣,14
+880,continuous,word,그렇,rmfjg ,R M F J G  ␣,15
+881,continuous,word,눈치챈,snsclcos ,S N S C L C O S  ␣,16
+882,continuous,word,잘라,wkffk ,W K F F K  ␣,17
+883,continuous,word,총선거,chdtjsrj ,C H D T J S R J  ␣,18
+884,continuous,word,줄어들,wnfdjemf ,W N F D J E M F  ␣,19
+885,continuous,word,신축,tlscnr ,T L S C N R  ␣,20
+886,continuous,word,지만,wlaks ,W L A K S  ␣,21
+887,continuous,word,코앞,zhdkv ,Z H D K V  ␣,22
+888,continuous,word,카게야마,zkrpdiak ,Z K R P D I A K  ␣,23
+889,continuous,word,영수,dudtn ,D U D T N  ␣,24
+890,continuous,word,자동,wkehd ,W K E H D  ␣,25
+891,continuous,word,파면,vkaus ,V K A U S  ␣,26
+892,continuous,word,안녕히,dkssudgl ,D K S S U D G L  ␣,27
+893,continuous,word,메디,apel ,A P E L  ␣,28
+894,continuous,word,사복,tkqhr ,T K Q H R  ␣,29
+895,continuous,word,타이탄,xkdlxks ,X K D L X K S  ␣,30
+896,continuous,word,수력,tnfur ,T N F U R  ␣,31
+897,continuous,word,크릭,zmflr ,Z M F L R  ␣,32
+898,continuous,word,김정남,rlawjdska ,R L A W J D S K A  ␣,33
+899,continuous,word,프레드,vmfpem ,V M F P E M  ␣,34
+900,continuous,word,포커스,vhzjtm ,V H Z J T M  ␣,35
+901,continuous,word,포기,vhrl ,V H R L  ␣,36
+902,continuous,word,카메라맨,zkapfkaos ,Z K A P F K A O S  ␣,37
+903,continuous,word,어색,djtor ,D J T O R  ␣,38
+904,continuous,word,단,eks ,E K S  ␣,39
+905,continuous,word,놓,shg ,S H G  ␣,40
+906,continuous,word,록키,fhrzl ,F H R Z L  ␣,41
+907,continuous,word,소액,thdor ,T H D O R  ␣,42
+908,continuous,word,세자,tpwk ,T P W K  ␣,43
+909,continuous,word,가정부,rkwjdqn ,R K W J D Q N  ␣,44
+910,continuous,word,조각,whrkr ,W H R K R  ␣,45
+911,continuous,word,효성,gytjd ,G Y T J D  ␣,46
+912,continuous,word,렘,fpa ,F P A  ␣,47
+913,continuous,word,포획,vhghlr ,V H G H L R  ␣,48
+914,continuous,word,이거,dlrj ,D L R J  ␣,49
+915,continuous,word,패망,voakd ,V O A K D  ␣,50
+916,break,info,휴식 (50/100 단어),,,0
+917,continuous,word,빛,qlc ,Q L C  ␣,51
+918,continuous,word,숙,tnr ,T N R  ␣,52
+919,continuous,word,기대,rleo ,R L E O  ␣,53
+920,continuous,word,국가,rnrrk ,R N R R K  ␣,54
+921,continuous,word,직면,wlraus ,W L R A U S  ␣,55
+922,continuous,word,어서,djtj ,D J T J  ␣,56
+923,continuous,word,도시락,ehtlfkr ,E H T L F K R  ␣,57
+924,continuous,word,무혐,angua ,A N G U A  ␣,58
+925,continuous,word,신뢰,tlsfhl ,T L S F H L  ␣,59
+926,continuous,word,캥거루,zodrjfn ,Z O D R J F N  ␣,60
+927,continuous,word,메이드,apdlem ,A P D L E M  ␣,61
+928,continuous,word,좆같,whwrkx ,W H W R K X  ␣,62
+929,continuous,word,전역,wjsdur ,W J S D U R  ␣,63
+930,continuous,word,섭니,tjqsl ,T J Q S L  ␣,64
+931,continuous,word,가져와,rkwudhk ,R K W U D H K  ␣,65
+932,continuous,word,열등감,dufemdrka ,D U F E M D R K A  ␣,66
+933,continuous,word,손재주,thswown ,T H S W O W N  ␣,67
+934,continuous,word,롤,fhf ,F H F  ␣,68
+935,continuous,word,유령,dbfud ,D B F U D  ␣,69
+936,continuous,word,겸손,ruaths ,R U A T H S  ␣,70
+937,continuous,word,든,ems ,E M S  ␣,71
+938,continuous,word,굶,rnfa ,R N F A  ␣,72
+939,continuous,word,토요일,xhdydlf ,X H D Y D L F  ␣,73
+940,continuous,word,렛,fpt ,F P T  ␣,74
+941,continuous,word,밤,qka ,Q K A  ␣,75
+942,continuous,word,착하,ckrgk ,C K R G K  ␣,76
+943,continuous,word,저해,wjgo ,W J G O  ␣,77
+944,continuous,word,밭,qkx ,Q K X  ␣,78
+945,continuous,word,방문,qkdans ,Q K D A N S  ␣,79
+946,continuous,word,고래,rhfo ,R H F O  ␣,80
+947,continuous,word,치부,clqn ,C L Q N  ␣,81
+948,continuous,word,알려,dkffu ,D K F F U  ␣,82
+949,continuous,word,체크카드,cpzmzkem ,C P Z M Z K E M  ␣,83
+950,continuous,word,스톨,tmxhf ,T M X H F  ␣,84
+951,continuous,word,미이라,aldlfk ,A L D L F K  ␣,85
+952,continuous,word,자네,wksp ,W K S P  ␣,86
+953,continuous,word,살인마,tkfdlsak ,T K F D L S A K  ␣,87
+954,continuous,word,프랑스,vmfkdtm ,V M F K D T M  ␣,88
+955,continuous,word,카멜,zkapf ,Z K A P F  ␣,89
+956,continuous,word,우연,dndus ,D N D U S  ␣,90
+957,continuous,word,회귀,ghlrnl ,G H L R N L  ␣,91
+958,continuous,word,주체,wncp ,W N C P  ␣,92
+959,continuous,word,히로시,glfhtl ,G L F H T L  ␣,93
+960,continuous,word,급감,rmqrka ,R M Q R K A  ␣,94
+961,continuous,word,포로,vhfh ,V H F H  ␣,95
+962,continuous,word,구장,rnwkd ,R N W K D  ␣,96
+963,continuous,word,랭,fod ,F O D  ␣,97
+964,continuous,word,들어가,emfdjrk ,E M F D J R K  ␣,98
+965,continuous,word,치료법,clfyqjq ,C L F Y Q J Q  ␣,99
+966,continuous,word,본체,qhscp ,Q H S C P  ␣,100
+967,rest,info,"[정지] 왼손 검지를 F 위에 올리고 완전히 멈추세요.
+준비되면 오른손으로 SPACE → 5초간 가만히.",,,0
+968,rest,rest,5,,F 위에서 정지,0
+969,outro,info,끝났습니다. 잠시 기다리세요.,,,0

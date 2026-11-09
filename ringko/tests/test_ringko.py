@@ -531,7 +531,7 @@ def test_end_to_end():
         wins = trial_windows(sd, "isolated")
         assert len(wins) == 14 and all(len(w["imu"]) > 300 for w in wins)
         lines, warns = quality_report(sd)
-        assert any("자음별" in l for l in lines), lines
+        assert any("자음별" in line for line in lines), lines
 
 
 if __name__ == "__main__":

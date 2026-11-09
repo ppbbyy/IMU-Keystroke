@@ -288,7 +288,7 @@ def test_imu_reader_fake_serial():
     s = r.stats()
     assert s["n"] >= 300, s
     assert s["dropped"] == 3 and s["bad_lines"] == 1, s
-    assert any(l.startswith("H,") for l in s["fw_info"])
+    assert any(line.startswith("H,") for line in s["fw_info"])
     t = df["t_us"].to_numpy()
     assert (np.diff(t) > 0).all(), "micros 래핑이 풀리지 않음"
     assert t[-1] > (1 << 32), "래핑 후 값이 4294967296을 넘어야 함"

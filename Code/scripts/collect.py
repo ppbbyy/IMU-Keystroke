@@ -25,7 +25,7 @@ from make_prompts import make  # noqa: E402
 from ringkey import __version__  # noqa: E402
 from ringkey.imu_stream import IMUReader, find_port  # noqa: E402
 from ringkey.keylog import KeyLog  # noqa: E402
-from ringkey.prompts import expected_counts, estimated_minutes, load_plan, save_plan, seed_for  # noqa: E402
+from ringkey.prompts import expected_counts, estimated_minutes, load_plan, save_plan  # noqa: E402
 from ringkey.session import Params, Runner  # noqa: E402
 from ringkey.sync import analyze_run, save_sync  # noqa: E402
 
