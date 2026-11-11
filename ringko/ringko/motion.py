@@ -1,22 +1,18 @@
-"""파이프라인 Stage 1: 시도별 body -> 정지 기준 world frame 변환과 수평 변위 추정 (MoLe 방식 변형).
+"""IMU 운동 보조 — 타격 시각 맞춤(find_press), 움직임 시작 정지 창(find_onset), 회전, 칼만 추세, 파라미터.
 
-한 시도(F 정지 -> 자음 키 타격)마다
- 1) 타격 시점: 키다운 시각 근처 가속도 변화량(jerk) 최대 샘플
- 2) 움직임 시작: 타격에서 거꾸로 가며 '정지 창'(자이로 < still_dps, |a| 변동 < 0.02g, 60ms)을 찾음.
-    못 찾으면 cue 시점(수집 화면이 정지를 확인한 순간)을 사용 -> onset_src='cue'
- 3) 정지 창 평균으로 중력(body)과 자이로 바이어스를 잡고(C(0)), 자이로 적분 회전으로 가속도를 기준 프레임으로 옮긴 뒤
-    중력을 빼서 선형가속도 -> 이중적분
- 4) 끝점(기본: 타격 직전)에서 '수평' 속도만 0으로 선형 보정(평균 제거). 타격 직전 손가락은 아래로 내려오는 중이라
-    수직 속도는 0이 아니므로 보정하지 않는다(파일럿에서 전 축 보정보다 나음).
- 5) 수평면(중력에 수직) 2D 좌표 (u, w) [mm]로 투영
-원시 자이로는 frames.GYRO_SIGN을 곱해 가속도축 오른손 좌표로 맞춘다.
+이 함수들은 기존 타격 검출(features.detect_presses / refine_presses)과 3차원 추적(track3d)이 함께 쓴다.
+  find_press  : 키 시각 근처 가속도 변화량(jerk) 최대 샘플 = 타격 순간
+  find_onset  : 타격에서 거꾸로 가며 '정지 창'(자이로 < still_dps, |a| 변동 < still_acc_ptp_g, still_win_s)을 찾음.
+                못 찾으면 cue 시점(수집 화면이 F 정지를 확인한 순간) → onset_src='cue'
+원시 자이로는 frames.GYRO_SIGN을 곱해 가속도축 오른손 좌표로 맞춘다(track3d는 align3d.estimate_gyro_sign으로
+라벨 없이 다시 정할 수도 있다).
+(이전 버전의 2D 수평 변위 isolated_displacements · 2D 레이아웃 맞춤 robust_layout_fit 등은 제거됨 → track3d.)
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 import numpy as np
-import pandas as pd
 
 from .frames import GYRO_SIGN
 
@@ -76,31 +72,6 @@ def kalman_trend(z: np.ndarray, rho: float, r: float = 1.0) -> np.ndarray:
     return xs
 
 
-def integrate(t: np.ndarray, acc: np.ndarray, gyr: np.ndarray, g_body0: np.ndarray, bias: np.ndarray,
-              zupt: str = "horizontal", kalman_rho: float = 0.0) -> dict:
-    """t[s], acc[m/s^2](specific force, body), gyr[rad/s](오른손 좌표). 첫 샘플 = 정지 기준.
-    반환: 기준 프레임(body at t0) 변위/속도, 최종 회전."""
-    n = len(t)
-    R = np.eye(3)                                   # body(t) -> body(t0)
-    a = np.empty((n, 3))
-    for i in range(n):
-        a[i] = R @ acc[i] - g_body0
-        if i < n - 1:
-            R = R @ rotvec_to_mat((gyr[i] - bias) * (t[i + 1] - t[i]))
-    tt = t - t[0]
-    dt = np.diff(tt)[:, None]
-    gz = g_body0 / np.linalg.norm(g_body0)
-    if kalman_rho > 0:
-        tr = kalman_trend(a, kalman_rho)
-        a = a - (tr - np.outer(tr @ gz, gz))       # 수평 성분 추세만 제거(수직은 타격 감속이 커서 추세 추정이 깨짐)
-    v = np.vstack([np.zeros(3), np.cumsum((a[1:] + a[:-1]) / 2 * dt, axis=0)])
-    if zupt != "none" and tt[-1] > 0:
-        ve = v[-1] if zupt == "full" else v[-1] - (v[-1] @ gz) * gz
-        v = v - np.outer(tt / tt[-1], ve)
-    s = np.vstack([np.zeros(3), np.cumsum((v[1:] + v[:-1]) / 2 * dt, axis=0)])
-    return {"disp": s[-1], "path": s, "vel": v, "R": R, "gz": gz}
-
-
 def horizontal_basis(gz: np.ndarray, ref: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """중력 gz에 수직인 평면의 직교 기저. e1 = ref를 평면에 투영한 방향."""
     e1 = ref - (ref @ gz) * gz
@@ -135,85 +106,3 @@ def find_onset(t, acc, gyr, ip: int, lower_s: float, p: MotionParams) -> tuple[i
     return max(i_low, n_w), "cue"
 
 
-def isolated_displacements(sd, p: MotionParams | None = None, phases=("calib", "isolated")) -> pd.DataFrame:
-    """정상 개별 키 시도마다 F→키 수평 변위. 열: trial_id, phase, key, u, w [mm], vert[mm], dur[s], rot_deg, onset_src, ok"""
-    p = p or MotionParams()
-    t, acc, gyr = session_arrays(sd)
-    tr = sd.trials[(sd.trials.status == "ok") & sd.trials.phase.isin(phases)]
-    # 세션 공통 기준축: 정지 시 중력에 가장 수직인 body 축(수평 기준 e1)
-    rest = sd.trials[(sd.trials.phase == "rest") & (sd.trials.status == "ok")]
-    if len(rest):
-        r = rest.iloc[0]
-        m = (t >= r.cue_ns / 1e9) & (t <= r.end_ns / 1e9)
-        g_ref = acc[m].mean(0)
-    else:
-        g_ref = acc[:200].mean(0)
-    ref_axis = np.eye(3)[int(np.argmin(np.abs(g_ref)))]
-    rows = []
-    for _, x in tr.iterrows():
-        ip = find_press(t, acc, x.first_key_ns / 1e9, p.press_search_s)
-        if ip is None:
-            continue
-        i0, src = find_onset(t, acc, gyr, ip, x.cue_ns / 1e9 - 0.05, p)
-        n_w = max(3, int(round(p.still_win_s * 233)))
-        if p.end == "after":
-            k0, k1 = ip + 4, min(len(t) - 2, ip + 35)
-            act = np.degrees(np.linalg.norm(gyr[k0:k1], axis=1)) / 10 + \
-                np.linalg.norm(acc[k0:k1] - acc[k0 - 1:k1 - 1], axis=1) / G * 20
-            ie = k0 + int(np.argmin(act))
-        else:
-            ie = ip - 2
-        if ie <= i0 + 2:
-            continue
-        g0 = acc[max(0, i0 - n_w):i0].mean(0)
-        bias = gyr[max(0, i0 - n_w):i0].mean(0)
-        res = integrate(t[i0:ie + 1], acc[i0:ie + 1], gyr[i0:ie + 1], g0, bias, p.zupt, p.kalman_rho)
-        e1, e2 = horizontal_basis(res["gz"], ref_axis)
-        d = res["disp"]
-        dur = t[ie] - t[i0]
-        rot = np.degrees(np.arccos(np.clip((np.trace(res["R"]) - 1) / 2, -1, 1)))
-        rows.append({"trial_id": x.trial_id, "phase": x.phase, "key": x.expect,
-                     "u": d @ e1 * 1000, "w": d @ e2 * 1000, "vert": d @ res["gz"] * 1000,
-                     "dur": dur, "rot_deg": rot, "onset_src": src, "ok": dur <= p.max_move_s})
-    return pd.DataFrame(rows)
-
-
-# --------------------------------------------------------------------------- 평가 도우미
-def loo_centroid_accuracy(df: pd.DataFrame, keys) -> tuple[float, float]:
-    """레이아웃 정보 없이: 키별 중앙값 중심, leave-one-out 최근접 중심 분류의 (키, 행) 정확도."""
-    from .hangul import KEY_ROW
-    V = df[["u", "w"]].to_numpy()
-    K = df.key.to_numpy()
-    ck = cr = 0
-    for i in range(len(V)):
-        m = np.ones(len(V), bool)
-        m[i] = False
-        cents = {k: np.median(V[m & (K == k)], axis=0) for k in keys if (m & (K == k)).any()}
-        pred = min(cents, key=lambda k: np.linalg.norm(V[i] - cents[k]))
-        ck += pred == K[i]
-        cr += KEY_ROW[pred] == KEY_ROW[K[i]]
-    return ck / len(V), cr / len(V)
-
-
-def robust_layout_fit(df: pd.DataFrame, pitch_mm: float = 19.0, iters: int = 10) -> dict:
-    """측정 (u,w) -> 키보드 좌표(F 기준 mm) 2D 유사변환(반사 허용)을 반복 재가중 최소제곱으로. 최근접 키 정확도."""
-    from .hangul import KEY_ROW, KEY_XY
-    keys = list("qwertasdfgzxcv")
-    KP = np.array([[(KEY_XY[k][0] - KEY_XY["f"][0]) * pitch_mm, (KEY_XY[k][1] - KEY_XY["f"][1]) * pitch_mm] for k in keys])
-    X = df[["u", "w"]].to_numpy()
-    Y = np.array([KP[keys.index(k)] for k in df.key])
-    wts = np.ones(len(X))
-    for _ in range(iters):
-        mx, my = np.average(X, 0, wts), np.average(Y, 0, wts)
-        Xc, Yc = X - mx, Y - my
-        U, S, Vt = np.linalg.svd((Xc * wts[:, None]).T @ Yc)
-        Rm = U @ Vt
-        sc = S.sum() / (wts * (Xc ** 2).sum(1)).sum()
-        F = Xc @ Rm * sc + my
-        r = np.linalg.norm(F - Y, axis=1)
-        c = 1.5 * max(np.median(r), 1e-6)
-        wts = np.where(r < c, 1.0, c / r)  # Huber
-    pred = [keys[int(np.argmin(np.linalg.norm(KP - f, axis=1)))] for f in F]
-    acc = float(np.mean([p_ == k for p_, k in zip(pred, df.key)]))
-    racc = float(np.mean([KEY_ROW[p_] == KEY_ROW[k] for p_, k in zip(pred, df.key)]))
-    return {"scale": float(sc), "key_acc": acc, "row_acc": racc, "fitted": F, "pred": pred}
