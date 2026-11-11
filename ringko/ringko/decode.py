@@ -15,6 +15,8 @@
 추가 구성요소(docs/pipeline.docx '문제점' · Stage 4)
   RowModel     (A) QwertyRing식 행 모델: 윈도우 전체 평균 자세(tilt)를 행별 정규분포로 → 키별 unary
   TimingModel  Stage 4 keystroke interval: 타격 간격 ~ 이동거리(Fitts) + 사이 오른손 키 수 → 쌍 퍼텐셜/단어 점수
+               + 단어 끝 꼬리: 마지막 타격 → F 복귀 정지 시간 ~ 끝 키의 F 거리 + [끝 자음 뒤 모음 있음]
+                 (자음열·사이 모음 수가 같은 '눈'/'누나'를 가르는 유일한 신호 쪽 단서)
   inner        (B) aLeak식 기하 매칭: 후보 자음열로 만든 가상 궤적과 관측 궤적의 내적(코사인)
                — rank_words(score=...) 와 kbest_sequences + rerank_inner(사전 없는 자음 후보 재순위)
   착용별 보정   Geometry.from_layout / fit(회전·배율 A + 시작 오프셋 b) / adapt(정답 없이 EM)
@@ -145,6 +147,14 @@ class RowModel:
         return self.row_logpost(df)[:, self.row_of]                                 # (n,14)
 
 
+def tail_right(word: str) -> int:
+    """단어의 마지막 자음 뒤 오른손(모음) 키 수. 눈 -> 0, 누나 -> 1."""
+    from .hangul import to_keys
+    ks = to_keys(word)
+    cp = [i for i, c in enumerate(ks) if c in KI]
+    return len(ks) - 1 - cp[-1] if cp else 0
+
+
 def right_counts(word: str) -> list[int]:
     """단어의 자음 타격마다 직전 자음과의 사이 오른손(모음) 키 수. 첫 자음은 0."""
     from .hangul import to_keys
@@ -157,7 +167,11 @@ class TimingModel:
     """Stage 4 keystroke interval.
     ikt_k = c0 + c1·|기대 변위| + c2·[첫 타격] (+ c3·사이 오른손 키 수) + N(0, s²)
     Fitts 법칙(멀수록 오래)과 '모음을 치는 동안 왼손이 기다린다'를 함께 반영. 사이 오른손 키 수는 단어마다 정해져 있으므로
-    사전 점수(word_loglik)에서 쓰고, 사전 없는 사슬 모델(pair_loglik)에는 그 항 없이 맞춘 모델(with_nv=False)을 쓴다."""
+    사전 점수(word_loglik)에서 쓰고, 사전 없는 사슬 모델(pair_loglik)에는 그 항 없이 맞춘 모델(with_nv=False)을 쓴다.
+
+    꼬리(tail): 단어를 마치면 검지가 F로 돌아와 멈춘다. 마지막 타격 → 정지 시간
+      tail = d0 + d1·|끝 키의 F 기준 기대 위치| + d2·[끝 자음 뒤 오른손 키 있음] + N(0, s_tail²)
+    로 맞춰 tail_loglik으로 단어 점수에 더한다. 학습 데이터에 tail/nvt 열이 없거나 적으면 꼬리 모델은 꺼진다(tail_coef=None)."""
 
     def __init__(self, with_nv: bool = True):
         self.with_nv = with_nv
@@ -182,7 +196,34 @@ class TimingModel:
         self.coef, *_ = np.linalg.lstsq(X, y, rcond=None)
         r = y - X @ self.coef
         self.s = float(max(1.4826 * np.median(np.abs(r - np.median(r))), 0.03))   # 강건(MAD) 표준편차
+        self._fit_tail(geo, wp)
         return self
+
+    def _fit_tail(self, geo: Geometry, wp, min_n: int = 10):
+        self.tail_coef, self.s_tail = None, None
+        if not {"tail", "nvt"} <= set(wp.columns):
+            return
+        rows = []
+        for _, g in wp.groupby("tkey" if "tkey" in wp.columns else "trial_id", sort=False):   # 여러 세션이면 tkey
+            tail, nvt = float(g["tail"].iloc[-1]), int(g["nvt"].iloc[-1])
+            if not np.isfinite(tail) or nvt < 0:
+                continue
+            rows.append((np.linalg.norm(geo.expected("".join(g.key)).sum(0)), nvt > 0, tail))
+        if len(rows) < min_n or len({r[1] for r in rows}) < 2:
+            return
+        d = np.array(rows, float)
+        X = np.stack([np.ones(len(d)), d[:, 0], d[:, 1]], -1)
+        self.tail_coef, *_ = np.linalg.lstsq(X, d[:, 2], rcond=None)
+        r = d[:, 2] - X @ self.tail_coef
+        self.s_tail = float(max(1.4826 * np.median(np.abs(r - np.median(r))), 0.03))
+
+    def tail_loglik(self, end_dist, tail: float, nvt) -> np.ndarray:
+        """end_dist: 끝 키의 F 기준 기대 위치 거리[mm](배열 가능), nvt: 끝 자음 뒤 오른손 키 수. 모델/관측 없으면 0."""
+        if getattr(self, "tail_coef", None) is None or tail is None or not np.isfinite(tail):
+            return np.zeros(np.shape(end_dist))
+        c = self.tail_coef
+        pred = c[0] + c[1] * np.asarray(end_dist, float) + c[2] * (np.asarray(nvt) > 0)
+        return -((tail - pred) ** 2) / (2 * self.s_tail ** 2)
 
     def pair_loglik(self, geo: Geometry, ikt: float, first: bool) -> np.ndarray:
         dist = np.linalg.norm(geo.expected_pairs(), axis=-1)
@@ -347,6 +388,7 @@ class Lexicon:
             self.by_len[len(c)][c].append((w, f))
         self._idx = {}
         self._nv = {}
+        self._nvt = {}
 
     def strings(self, n):
         if n not in self._idx:
@@ -359,12 +401,19 @@ class Lexicon:
             self._nv[w] = right_counts(w)
         return self._nv[w]
 
+    def nvt(self, w):
+        if w not in self._nvt:
+            self._nvt[w] = tail_right(w)
+        return self._nvt[w]
+
     def rank_words(self, geo: Geometry, obs: np.ndarray, unary: np.ndarray | None = None, lam: float = 0.0,
                    score: str = "gauss", kappa: float = 20.0, timing: TimingModel | None = None, ikt=None,
-                   tau: float = 1.0):
+                   tau: float = 1.0, tail: float | None = None):
         """[(점수, 단어)] 내림차순.
         score: 'gauss'(기하 가우스 우도) | 'inner'(aLeak 코사인 κ·cos만) | 'both'(가우스 + κ·cos)
-        timing/ikt: Stage 4 타이밍 모델(단어별 사이 오른손 키 수 포함), 가중 tau."""
+        timing/ikt: Stage 4 타이밍 모델(단어별 사이 오른손 키 수 포함), 가중 tau.
+        tail: 마지막 타격 → F 복귀 정지 시간[s](features.word_presses의 tail). timing의 꼬리 모델로 tau 가중해 더한다.
+              자음열이 같아도 끝 자음 뒤 모음 유무가 다른 단어(눈/누나)는 여기서만 점수가 갈린다."""
         n = len(obs)
         cs, idx = self.strings(n)
         if not cs:
@@ -383,12 +432,19 @@ class Lexicon:
             ll = ll + unary[np.arange(n)[None, :], idx - 1].sum(1)
         use_t = timing is not None and ikt is not None and tau != 0
         ikt = np.asarray(ikt, float) if use_t else None
+        use_tail = timing is not None and tau != 0 and tail is not None and np.isfinite(tail)
+        if use_tail:
+            # 끝 위치 거리는 관측 궤적에서(후보마다 바꾸지 않음) → 꼬리 항은 '끝 자음 뒤 모음 유무'로만 후보를 가른다
+            end_dist = float(np.linalg.norm(np.asarray(obs).sum(0)))
+            tl = {v: float(tau * timing.tail_loglik(end_dist, tail, v)) for v in (0, 1)}
         out = []
         for i, s in enumerate(cs):
             for w, f in self.by_len[n][s]:
                 sc = ll[i] + lam * np.log(f)
                 if use_t:
                     sc += tau * timing.word_loglik(exp[i], ikt, self.nv(w))
+                if use_tail:
+                    sc += tl[min(self.nvt(w), 1)]
                 out.append((sc, w))
         out.sort(reverse=True)
         return out

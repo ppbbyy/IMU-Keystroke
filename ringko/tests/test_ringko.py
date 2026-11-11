@@ -265,6 +265,41 @@ def test_row_timing_inner():
     assert np.allclose(tm.coef, [0.2, 0.004, 0.1, 0.15], atol=0.02), tm.coef
 
 
+def test_tail_return():
+    """단어 끝 F 복귀 정지 시간(꼬리)으로 자음열이 같은 '눈'/'누나'를 가른다."""
+    from ringko.decode import KEYS, Geometry, Lexicon, TimingModel, tail_right
+    from ringko.features import tail_settle
+    assert tail_right("눈") == 0 and tail_right("누나") == 1 and tail_right("과일") == 0
+    assert to_consonant_keys("눈") == to_consonant_keys("누나")
+    # tail_settle: 타격 뒤 0.4s 움직이다 멈춘 자이로 → 약 0.4s
+    t = np.arange(0, 3, 1 / 238)
+    gyr = np.zeros((len(t), 3))
+    ip = 100
+    gyr[ip:ip + int(0.4 * 238), 0] = np.radians(60)
+    assert abs(tail_settle(t, gyr, ip) - 0.4) < 0.02
+    # 꼬리 모델: 끝 자음 뒤 모음이 있으면 0.12s 늦게 멈추는 데이터로 학습
+    rng = np.random.default_rng(5)
+    M = np.array([[(KEY_XY[k][0] - KEY_XY["f"][0]) * 19, (KEY_XY[k][1] - KEY_XY["f"][1]) * 19] for k in KEYS])
+    geo = Geometry(M)
+    recs = []
+    for i, w in enumerate(["눈", "누나", "사람", "바다", "한국", "하늘", "가게", "강"] * 6):
+        cs = to_consonant_keys(w)
+        tail = 0.55 + 0.12 * (tail_right(w) > 0) + rng.normal(0, 0.03)
+        for k in range(len(cs)):
+            recs.append({"trial_id": i, "key": cs[k], "idx": k, "nv": 0, "ikt": 0.3, "tail": tail,
+                         "nvt": tail_right(w)})
+    tm = TimingModel(True).fit(geo, pd.DataFrame(recs))
+    assert tm.tail_coef is not None and abs(tm.tail_coef[2] - 0.12) < 0.03, tm.tail_coef
+    lex = Lexicon([("눈", 100.0), ("누나", 100.0)])
+    obs = geo.expected(to_consonant_keys("눈"))
+    ikt = np.array([0.3, 0.3])
+    top = lambda tail: lex.rank_words(geo, obs, timing=tm, ikt=ikt, tail=tail)[0][1]  # noqa: E731
+    assert top(0.55) == "눈" and top(0.68) == "누나"
+    # 꼬리 관측이 없으면 두 단어 점수가 같다
+    sc = lex.rank_words(geo, obs, timing=tm, ikt=ikt)
+    assert abs(sc[0][0] - sc[1][0]) < 1e-9
+
+
 def test_wear_calibration():
     from ringko.decode import KEYS, Geometry, Lexicon
     words = ["한국", "학교", "사람", "바다", "하늘", "시간", "친구", "택시", "나라", "가족", "도시", "마음"]

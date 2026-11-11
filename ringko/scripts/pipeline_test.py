@@ -133,9 +133,9 @@ def jamo(s):
     return "".join(KEY2JAMO.get(c, "?") for c in s)
 
 
-def decode_word(geo, obs, un, lexes, a, lm=None, ikt=None, models=None, un_row=None):
+def decode_word(geo, obs, un, lexes, a, lm=None, ikt=None, models=None, un_row=None, tail=None):
     """자음 주변확률(자음 언어모델·타이밍·행 모델 포함) → 최선 자음열,
-    어휘별 단어 순위 목록(사전이 있으므로 언어모델 없이; 기하 + aLeak 내적 + Stage 4 타이밍 + 빈도)."""
+    어휘별 단어 순위 목록(사전이 있으므로 언어모델 없이; 기하 + aLeak 내적 + Stage 4 타이밍(+ F 복귀 꼬리) + 빈도)."""
     models = models or {}
     pe = timing_pairs(models.get("tm_chain"), geo, ikt, a.timing_w)
     u = un
@@ -143,7 +143,8 @@ def decode_word(geo, obs, un, lexes, a, lm=None, ikt=None, models=None, un_row=N
         u = un_row if u is None else u + un_row
     P = chain_marginals(geo, obs, u, lm, a.gamma, pe)
     best = "".join(KEYS[i] for i in P.argmax(1))
-    ranked = {name: [w for _, w in lex.rank_words(geo, obs, un, a.lam, a.score, a.kappa, models.get("tm_word"), ikt, a.tau)]
+    ranked = {name: [w for _, w in lex.rank_words(geo, obs, un, a.lam, a.score, a.kappa, models.get("tm_word"), ikt, a.tau,
+                                                 tail if a.tail else None)]
               for name, lex in lexes.items()}
     return P, best, ranked
 
@@ -204,7 +205,8 @@ def run(iso, test_wp, train_wp_for, lexes, a, oracle, lm=None, skip=frozenset(),
         truth = to_consonant_keys(word)
         un = unary(clf, test_wp, idx, a.beta)
         un_row = a.row_eta * models["row"].unary(test_wp.loc[idx]) if models["row"] is not None else None
-        P, best, ranked = decode_word(geo, obs, un, lexes, a, lm, ikt, models, un_row)
+        tail = float(test_wp["tail"][idx[-1]]) if "tail" in test_wp.columns else None
+        P, best, ranked = decode_word(geo, obs, un, lexes, a, lm, ikt, models, un_row, tail)
         r = {"session": tk[0], "trial_id": tk[1], "word": word, "truth": jamo(truth), "pred": jamo(best),
              "n_true": len(truth), "n_det": len(obs), "edits": edit_distance(best, truth)}
         if oracle and len(obs) == len(truth):
@@ -236,6 +238,8 @@ def main():
                     help="단어 기하 점수: 가우스 | aLeak 내적(코사인) | 둘 다 (S01 CV: both κ=20)")
     ap.add_argument("--kappa", type=float, default=20.0, help="aLeak 내적 점수 가중")
     ap.add_argument("--tau", type=float, default=1.0, help="Stage 4 타이밍(타격 간격) 단어 점수 가중(0=끔)")
+    ap.add_argument("--tail", action="store_true",
+                    help="단어 끝 F 복귀 정지 시간(꼬리) 항 켜기(τ로 가중). S01에서 효과 중립(±1단어)이라 기본 끔")
     ap.add_argument("--timing-w", type=float, default=0.0, help="타이밍 쌍 퍼텐셜 가중(자음 사슬; S01에서 효과 없음)")
     ap.add_argument("--row-eta", type=float, default=0.0, help="QwertyRing 행 모델 unary 가중(자음 사슬; S01에서 효과 없음)")
     ap.add_argument("--geometry", default="isolated", choices=("isolated", "layout"),

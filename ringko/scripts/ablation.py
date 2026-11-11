@@ -70,6 +70,8 @@ class Words:
         self.obs = {t: self.wp[["du", "dw"]].to_numpy(float)[r] for t, r in self.rows.items()}
         self.cstr = {t: "".join(self.wp.key.to_numpy()[r]) for t, r in self.rows.items()}
         self.ikt = {t: self.wp.ikt.to_numpy(float)[r] for t, r in self.rows.items()}
+        self.tail = ({t: float(self.wp["tail"].to_numpy(float)[r[-1]]) for t, r in self.rows.items()}
+                     if "tail" in self.wp.columns else {})
         self.word = {t: self.wp.word.to_numpy()[r[0]] for t, r in self.rows.items()}
         self.y = self.wp.key.map(KI).to_numpy()
 
@@ -105,7 +107,8 @@ def chain_eval(W, iso, lm=None, gamma=0.0, offset=True, row_eta=0.0, row_cols=("
     return P
 
 
-def word_eval(W, iso, lex, lam=0.5, score="gauss", kappa=20.0, timing_tau=0.0, geos=None, obs=None, unary=None):
+def word_eval(W, iso, lex, lam=0.5, score="gauss", kappa=20.0, timing_tau=0.0, geos=None, obs=None, unary=None,
+              tail=False):
     hits = {1: 0, 3: 0, 5: 0}
     n = 0
     for f in range(5):
@@ -119,7 +122,7 @@ def word_eval(W, iso, lex, lam=0.5, score="gauss", kappa=20.0, timing_tau=0.0, g
                 continue
             o = obs[t] if obs is not None else W.obs[t]
             ranked = [w for _, w in lex.rank_words(geo, o, unary.get(t) if unary else None, lam, score, kappa,
-                                                   tm, W.ikt[t], timing_tau)]
+                                                   tm, W.ikt[t], timing_tau, W.tail.get(t) if tail else None)]
             r = ranked.index(W.word[t]) if W.word[t] in ranked else 10 ** 9
             n += 1
             for k in hits:
@@ -233,13 +236,17 @@ def run_timing(sd, lm, lexes):
     W = Words(word_presses(sd))
     tm = TimingModel(True).fit(Geometry.from_isolated(iso).fit(list(W.obs.values()), list(W.cstr.values())), W.wp)
     print(f"  간격 = {tm.coef[0]:.3f} + {tm.coef[1] * 1000:.2f}ms/mm·거리 + {tm.coef[2]:.3f}·첫타격 + {tm.coef[3]:.3f}·오른손키수, s={tm.s:.3f}s")
+    if tm.tail_coef is not None:
+        c = tm.tail_coef
+        print(f"  꼬리(F 복귀 정지) = {c[0]:.3f} + {c[1] * 1000:.2f}ms/mm·끝키거리 + {c[2]:.3f}·[끝 자음 뒤 모음], s={tm.s_tail:.3f}s")
     for w_ in (0.0, 0.5, 1.0):
         P = chain_eval(W, iso, lm, 0.5, timing_w=w_)
         print(f"  사슬+LM + 타이밍 가중 {w_:3.1f}   Top-1/3/5 {f3(topk(P, W.y))}")
     for name, lex in lexes.items():
         for tau in (0.0, 0.5, 1.0, 2.0):
-            r, n = word_eval(W, iso, lex, timing_tau=tau)
-            print(f"  단어 [{name}, {n}개] τ={tau:3.1f}  Top-1/3/5 {f3(r)}")
+            for tl in ((False, True) if tau else (False,)):
+                r, n = word_eval(W, iso, lex, timing_tau=tau, tail=tl)
+                print(f"  단어 [{name}, {n}개] τ={tau:3.1f}{' +꼬리' if tl else '      '}  Top-1/3/5 {f3(r)}")
 
 
 def run_inner(sd, lm, lexes):

@@ -5,6 +5,8 @@ isolated_features : 개별 키 시도(F 정지 -> 키). Stage 1 변위 + 궤적 
 word_presses      : 연속 타이핑 단어. 단어 시작(F 정지)부터 자세를 계속 적분하고, 자음 키 타격마다 수평 속도를 0으로
                     놓는(ZUPT) 구간 적분으로 '타격 간 변위'를 구해 누적 -> 각 타격의 F 기준 위치 (aLeak식 상대 벡터 연결).
                     타격 간격 ikt(Stage 4 keystroke interval)와 타격별 tilt도 함께 기록.
+                    tail = 마지막 자음 타격 → F 복귀 후 정지까지 시간. 끝 자음 뒤에 모음을 더 치는 단어(누나)는
+                    끝이 받침인 단어(눈)보다 늦게 멈춘다 → 자음열이 같은 단어를 가르는 단서(decode.TimingModel).
                     타격 구분은 키 로그(키다운) 시각을 쓴다(오라클 분할). IMU만으로 분할하는 성능은 detect_presses로 따로 잰다.
 detect_presses    : Stage 2. jerk 피크 + 충격 방향 게이트 + aLeak Algorithm 1(타이핑 리듬 = FFT f_type 또는 중앙 간격).
 
@@ -24,6 +26,9 @@ from .motion import G, MotionParams, find_onset, find_press, horizontal_basis, k
 N_PATH = 8
 N_WIN = 48          # 정규화용 원시 윈도우 길이(리샘플)
 RETURN_S = 0.35     # 개별 키: 타격 후 F 복귀까지 포함할 길이(QwertyRing: 윈도우 전체 평균 피치)
+TAIL_SKIP_S = 0.05   # 단어 끝: 마지막 타격 충격 구간은 건너뛰고
+TAIL_STILL_S = 0.25  # 이 길이만큼 자이로가 정지 임계 아래로 유지되는 첫 시점 = F 복귀 후 정지
+TAIL_MAX_S = 2.5     # 이 안에 정지가 없으면 NaN
 
 
 @dataclass
@@ -52,6 +57,21 @@ def _quiet_after(t, acc, gyr, ip, max_n=35):
     act = np.degrees(np.linalg.norm(gyr[k0:k1], axis=1)) / 10 + \
         np.linalg.norm(acc[k0:k1] - acc[k0 - 1:k1 - 1], axis=1) / G * 20
     return k0 + int(np.argmin(act))
+
+
+def tail_settle(t, gyr, ip: int, still_dps: float = 8.0) -> float:
+    """마지막 타격 ip 뒤 F 복귀를 마치고 손가락이 멈춘 시점까지 시간[s](없으면 NaN). IMU만 쓴다."""
+    dt = float(np.median(np.diff(t[max(0, ip - 50):ip + 51])))
+    gn = np.degrees(np.linalg.norm(gyr, axis=1)) < still_dps
+    w = max(2, int(round(TAIL_STILL_S / dt)))
+    j0 = ip + int(round(TAIL_SKIP_S / dt))
+    j1 = min(len(t) - w, ip + int(round(TAIL_MAX_S / dt)))
+    if j1 <= j0:
+        return float("nan")
+    # 길이 w 창이 모두 정지인 첫 시작점(누적합으로)
+    c = np.concatenate([[0], np.cumsum(~gn[j0:j1 + w])])
+    ok = np.where(c[w:w + j1 - j0] - c[:j1 - j0] == 0)[0]
+    return float(t[j0 + ok[0]] - t[ip]) if len(ok) else float("nan")
 
 
 def _rotations(t, gyr, i0, i1, bias):
@@ -222,6 +242,7 @@ def word_presses(sd, p: MotionParams | None = None, times: dict | None = None, w
     """연속 타이핑 정상 단어의 자음 타격별 특징.
     열: trial_id, word, idx, n, key, u, w(F 기준 누적 위치), du, dw(직전 타격 대비), ikt(직전 타격(첫 타격은 움직임 시작)
         부터의 시간[s] — Stage 4 keystroke interval), nv(정답 단어에서 직전 자음과의 사이 오른손 키 수; 학습용),
+        tail(마지막 타격 → F 복귀 정지 시간[s], 단어 안 모든 행에 같은 값), nvt(정답 단어의 끝 자음 뒤 오른손 키 수; 학습용),
         tilt_a/b(타격 전후 중간점까지 윈도우 평균 자세), raw*
     times: {trial_id: 타격 시각 배열[s, host]} 를 주면 키 로그 대신 그 시각(예: detect_presses 결과)으로 분할한다.
            이때 key 열은 ''(타격별 정답을 알 수 없음)."""
@@ -274,14 +295,17 @@ def word_presses(sd, p: MotionParams | None = None, times: dict | None = None, w
         B = np.stack([e1, e2, gz])
         # 정답 단어의 오른손 키 수(직전 자음 ~ 이 자음 사이): Stage 4 타이밍 모델 학습용
         nv = [0] * len(ips)
+        nvt = -1
         if times is None:
             try:
                 ks = to_keys(x.target)
                 cpos = [i for i, c in enumerate(ks) if c in LEFT_KEYS]
                 if len(cpos) == len(ips):
                     nv = [0] + [b - a_ - 1 for a_, b in zip(cpos, cpos[1:])]
+                    nvt = len(ks) - 1 - cpos[-1]
             except ValueError:
                 pass
+        tail = tail_settle(t, gyr, ips[-1], p.still_dps)
         a00, b00 = _tilt(Rs_all[:1], g0, ctx.ax_a, ctx.ax_b)      # 단어 시작(F 정지) 자세
         pos = np.zeros(3)
         start = i0
@@ -295,7 +319,8 @@ def word_presses(sd, p: MotionParams | None = None, times: dict | None = None, w
             f = {"trial_id": x.trial_id, "word": x.target, "idx": k, "n": len(ips), "key": kd.key.iloc[k],
                  "u": uw[0], "w": uw[1], "du": du[0], "dw": du[1], "seg_dur": t[ie] - t[start],
                  "word_t": t[ip] - t[i0], "onset_src": src,
-                 "ikt": t[ip] - (t[ips[k - 1]] if k else t[i0]), "nv": nv[k], "mag_used": mag_used}
+                 "ikt": t[ip] - (t[ips[k - 1]] if k else t[i0]), "nv": nv[k], "tail": tail, "nvt": nvt,
+                 "mag_used": mag_used}
             # 타격 윈도우 = 직전 타격과의 중간 ~ 다음 타격과의 중간(첫/끝은 시작/끝)
             wa = i0 if k == 0 else (ips[k - 1] + ip) // 2
             wb = i_last if k == len(ips) - 1 else (ip + ips[k + 1]) // 2
