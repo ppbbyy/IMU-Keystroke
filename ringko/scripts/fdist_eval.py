@@ -8,13 +8,17 @@
   후보 재현율   정답 키가 F 거리 [min, max] 대역 후보에 든 비율, 타격당 평균 후보 수
   자음 Top-1/3  사전 없이 대역 + 이웃 거리 사슬
   단어 Top-1/3/5 사전(어휘 크기별), λ=0.5
-  각 항목을 닫힘 보정(px,py,pz) / 보정 없음(u,w,z)으로 나란히.
+  d/g 구분     정답이 d 또는 g인 타격에서 P(정답) > P(반대쪽)인 비율(사전 없이)
+  설정을 나란히: 거리만(닫힘 보정 없음 u,w,z) / 거리만(닫힘 보정 px,py,pz) / 중력 + 세션 yaw(닫힘 보정)
+  '중력 + 세션 yaw'는 시험 세션의 라벨 없는 단어로 손잡이·yaw를 추정한다(FDistModel.calibrate).
 --imu  타격 시각을 키 로그 대신 detect_presses(Stage 2, 기존 코드 그대로)로. 이때 자음 지표는 타격 수가 맞는 단어만.
 """
 import argparse
 import sys
 import warnings
 from pathlib import Path
+
+import copy
 
 import numpy as np
 
@@ -27,12 +31,19 @@ from ringko.hangul import to_consonant_keys  # noqa: E402
 from ringko.plan import filter_vocab, load_vocab  # noqa: E402
 
 warnings.filterwarnings("ignore")
-POS = {"닫힘 보정": ["px", "py", "pz"], "보정 없음": ["u", "w", "z"]}
+POS = {"거리만 · 닫힘 보정 없음": (["u", "w", "z"], False), "거리만 · 닫힘 보정": (["px", "py", "pz"], False),
+       "중력 + 세션 yaw": (["px", "py", "pz"], True)}
+DG = (KI["d"], KI["g"])
 
 
-def evaluate(wp, fd, lexes, lam):
+def evaluate(wp, fd0, lexes, lam):
     out = {}
-    for name, cols in POS.items():
+    cal_lex = list(lexes.values())[-1]
+    for name, (cols, orient) in POS.items():
+        fd = copy.deepcopy(fd0)
+        if orient:
+            fd.calibrate([g[cols].to_numpy(float) for _, g in wp.groupby("trial_id", sort=False)], cal_lex)
+        dg_ok = dg_n = 0
         rec = size = 0
         c_hit = {1: 0, 3: 0}
         n_c = 0
@@ -48,7 +59,12 @@ def evaluate(wp, fd, lexes, lam):
                 C = fd.candidates(pos)
                 rec += C[np.arange(len(y)), y].sum()
                 size += C.sum()
-                order = np.argsort(-fd.marginals(pos), 1)
+                M = fd.marginals(pos)
+                order = np.argsort(-M, 1)
+                for i in range(len(y)):
+                    if y[i] in DG:
+                        dg_n += 1
+                        dg_ok += M[i, y[i]] > M[i, DG[0] if y[i] == DG[1] else DG[1]]
                 for k in c_hit:
                     c_hit[k] += sum(y[i] in order[i, :k] for i in range(len(y)))
                 n_c += len(y)
@@ -61,8 +77,10 @@ def evaluate(wp, fd, lexes, lam):
                 w_n[ln] += 1
                 for k in w_hit[ln]:
                     w_hit[ln][k] += r < k
+        cal = f"손잡이 {fd.flip:+.0f} · yaw {np.degrees(fd.mu):.0f}° · κ {fd.kappa:.1f}" if fd.oriented else ""
         out[name] = (rec / max(n_c, 1), size / max(n_c, 1), {k: v / max(n_c, 1) for k, v in c_hit.items()}, n_c,
-                     {ln: ({k: v / max(w_n[ln], 1) for k, v in w_hit[ln].items()}, w_n[ln]) for ln in lexes})
+                     {ln: ({k: v / max(w_n[ln], 1) for k, v in w_hit[ln].items()}, w_n[ln]) for ln in lexes},
+                     (dg_ok / max(dg_n, 1), dg_n), cal)
     return out
 
 
@@ -93,9 +111,10 @@ def main():
         wp = word_presses(sd, times=times)
         print(f"\n{Path(d).name} · 단어 {wp.trial_id.nunique()} · 닫힘 오차 중앙값 "
               f"{wp.groupby('trial_id').closure.first().median():.1f}mm")
-        for name, (rec, size, ch, n_c, wh) in evaluate(wp, fd, lexes, a.lam).items():
-            print(f"  [{name}] 후보 재현율 {rec:5.1%} · 평균 후보 {size:4.1f}/14 · 자음 Top-1/3 "
-                  f"{ch[1]:5.1%} / {ch[3]:5.1%} ({n_c}타)")
+        for name, (rec, size, ch, n_c, wh, (dg, dgn), cal) in evaluate(wp, fd, lexes, a.lam).items():
+            print(f"  [{name}] {cal}")
+            print(f"      후보 재현율 {rec:5.1%} · 평균 후보 {size:4.1f}/14 · 자음 Top-1/3 "
+                  f"{ch[1]:5.1%} / {ch[3]:5.1%} ({n_c}타) · d/g 구분 {dg:5.1%} ({dgn}타)")
             for ln, (r, n) in wh.items():
                 print(f"      단어 [{ln}, {n}개] Top-1/3/5 {r[1]:5.1%} / {r[3]:5.1%} / {r[5]:5.1%}")
 

@@ -322,6 +322,32 @@ def test_fdist_rotation_invariant():
         assert np.allclose(M.sum(1), 1) and np.allclose(M, fd.marginals(pos))
 
 
+def test_fdist_gravity_yaw():
+    """중력 + 세션 yaw: 정답 없이 손잡이·yaw를 찾고, 거리만으로는 못 가르는 d/g를 가른다."""
+    from ringko.decode import KI, Lexicon
+    from ringko.fdist import FDistModel, key_xyz
+    P = key_xyz()
+    rng = np.random.default_rng(11)
+    words = ["사람", "한국", "학교", "나라", "가게", "하늘", "바다", "어디", "다리", "기도", "도시", "하다"]
+    lex = Lexicon([(w, 50.0) for w in words])
+    yaw = np.radians(95.0)
+    Rz = np.array([[np.cos(yaw), -np.sin(yaw), 0], [np.sin(yaw), np.cos(yaw), 0], [0, 0, 1]])
+    mirror = np.diag([1.0, -1.0, 1.0])                                       # 센서 축 손잡이가 반대인 경우
+    pos_list = []
+    for w in words * 3:
+        idx = [KI[c] for c in to_consonant_keys(w)]
+        pos_list.append((P[idx] @ (Rz @ mirror).T) + rng.normal(0, 2, (len(idx), 3)))
+    fd = FDistModel().calibrate(pos_list, lex)
+    assert fd.flip == -1.0 and abs(np.degrees(np.angle(np.exp(1j * (fd.mu - yaw))))) < 10, (fd.flip, fd.mu)
+    for key in ("d", "g"):                                                   # 한 타격 단어에서도 d/g 구분
+        pos = (P[[KI[key]]] @ (Rz @ mirror).T)
+        M = fd.marginals(pos)
+        other = "g" if key == "d" else "d"
+        assert M[0, KI[key]] > M[0, KI[other]]
+        M0 = FDistModel().marginals(pos)                                     # 거리만: d와 g가 같은 확률
+        assert abs(M0[0, KI["d"]] - M0[0, KI["g"]]) < 1e-9
+
+
 def test_wear_calibration():
     from ringko.decode import KEYS, Geometry, Lexicon
     words = ["한국", "학교", "사람", "바다", "하늘", "시간", "친구", "택시", "나라", "가족", "도시", "마음"]

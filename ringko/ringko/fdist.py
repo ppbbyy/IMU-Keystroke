@@ -15,6 +15,19 @@
 
   한계: 거리만 쓰므로 F에 대해 거울상인 위치(예: d와 g는 둘 다 F에서 1u)는 F 거리로는 못 가른다 —
   다른 타격과의 쌍 거리와 사전이 가른다.
+
+중력 방향 + 세션 yaw (calibrate 후, d/g 구분)
+  px,py는 중력에 수직인 수평면, pz는 중력 축이다. 중력만으로는 '위'만 알 뿐 수평면의 방향(키보드 오른쪽이
+  어디인지 = yaw)은 모른다 → d(F 왼쪽)/g(F 오른쪽)는 중력만으로도 못 가른다. 그러나
+    · 중력을 쓰면 남는 자유도는 수평면 회전(yaw)과 축 손잡이(거울, 센서 축 정의에 따름)뿐이고
+    · 한 세션 안에서 손가락 yaw는 거의 일정하다(S01: 단어별 yaw 합성 길이 R = 0.91~0.97).
+  그래서 calibrate(정답 없이 그 세션 단어들만으로)가
+    1) 손잡이 flip ∈ {+1, −1}과 세션 yaw μ, 집중도 κ(von Mises)를 추정하고
+    2) 이후 점수에서 수평 위치를 '방향까지' 맞춘다:
+       단어: 후보마다 yaw θ를 Procrustes(회전만, 거울 없음) + 사전 κ·cos(θ−μ)로 구해 |O − s·R(θ)·E|²
+       사슬: 타격 위치 ≈ R(μ)·E_c, 이웃 변위 ≈ R(μ)·(E_b − E_a) (yaw 불확실성만큼 σ를 키움)
+  키 위치 학습은 여전히 없다(배열만). calibrate는 시험 세션의 라벨 없는 타이핑으로 그때그때 한다.
+  calibrate 전(mu=None)에는 거리만 쓰는 위의 동작 그대로.
 """
 from __future__ import annotations
 
@@ -41,6 +54,75 @@ class FDistModel:
         self.rmax = self.s_hi * self.d + tol_mm
         self.sigma_out, self.sigma_pair = sigma_out, sigma_pair
         self.D = np.linalg.norm(self.P[:, None] - self.P[None], axis=-1)      # (14,14) 키 간 거리
+        self.flip, self.mu, self.kappa = 1.0, None, 0.0                       # 중력 + 세션 yaw (calibrate)
+        self.press_mm = press_mm
+
+    # ------------------------------------------------------------------ 중력 + yaw
+    @property
+    def oriented(self) -> bool:
+        return self.mu is not None
+
+    def _E(self) -> np.ndarray:
+        """(15,2) F(0)와 키의 수평 배열 위치(손잡이 flip 적용)."""
+        Eh = self.Px[:, :2].copy()
+        Eh[:, 1] *= self.flip
+        return Eh
+
+    @staticmethod
+    def _rot(th):
+        c, s = np.cos(th), np.sin(th)
+        return np.array([[c, -s], [s, c]])
+
+    def _sigma_yaw(self, dist):
+        """yaw 불확실성(κ)을 거리 dist[mm]의 위치 오차로 바꿔 σ_pair와 합친 표준편차."""
+        sd_th = 1.0 / np.sqrt(max(self.kappa, 1e-3))
+        return np.sqrt(self.sigma_pair ** 2 + (np.asarray(dist) * sd_th) ** 2)
+
+    def _yaw_fit(self, pos, idx, flip, mu=None, kappa=0.0):
+        """후보별 (θ*, s*, 수평 log 점수). 회전만(거울 없음) Procrustes + yaw 사전."""
+        O = np.vstack([np.zeros(2), np.asarray(pos, float)[:, :2]])           # (n+1,2) F 포함
+        Eh = self.Px[:, :2] * [1.0, flip]
+        E = Eh[np.hstack([np.zeros((len(idx), 1), int), idx])]                 # (m,n+1,2)
+        A = (E * O[None]).sum((1, 2))                                          # Σ E·O
+        B = (E[..., 0] * O[None, :, 1] - E[..., 1] * O[None, :, 0]).sum(1)     # Σ E×O
+        ee = (E ** 2).sum((1, 2))
+        w = 1.0 / self.sigma_pair ** 2
+        prior = (kappa * np.cos(mu), kappa * np.sin(mu)) if mu is not None else (0.0, 0.0)
+        th = np.arctan2(w * B + prior[1], w * A + prior[0])
+        s = np.clip((A * np.cos(th) + B * np.sin(th)) / np.maximum(ee, 1e-9), self.s_lo, self.s_hi)
+        oo = (O ** 2).sum()
+        sq = oo - 2 * s * (A * np.cos(th) + B * np.sin(th)) + s ** 2 * ee       # |O − sR(θ)E|²
+        ll = -sq * w / 2
+        if mu is not None:
+            ll = ll + kappa * np.cos(th - mu)
+        return th, s, ll
+
+    def calibrate(self, pos_list, lex, iters: int = 2, top: int = 1):
+        """정답 없이 손잡이(flip)·세션 yaw(μ)·집중도(κ) 추정. pos_list: 단어별 (n,3) F 기준 위치. self를 바꾸고 반환."""
+        best = None
+        for flip in (1.0, -1.0):
+            mu, kappa = None, 0.0
+            for _ in range(iters):
+                ths = []
+                for pos in pos_list:
+                    pos = np.asarray(pos, float)
+                    cs, idx = lex.strings(len(pos))
+                    if not cs or not np.isfinite(pos).all():
+                        continue
+                    th, _, ll = self._yaw_fit(pos, idx, flip, mu, kappa)
+                    ll = ll + self._band(pos)[np.arange(len(pos))[None], idx - 1].sum(1)
+                    for i in np.argsort(-ll)[:top]:
+                        ths.append(th[i])
+                if not ths:
+                    break
+                z = np.exp(1j * np.array(ths)).mean()
+                R_ = float(min(abs(z), 0.98))
+                mu, kappa = float(np.angle(z)), R_ * (2 - R_ ** 2) / (1 - R_ ** 2)   # von Mises κ 근사
+            if mu is not None and (best is None or kappa > best[2]):
+                best = (flip, mu, kappa)
+        if best is not None:
+            self.flip, self.mu, self.kappa = best
+        return self
 
     # ------------------------------------------------------------------ 1) F 거리 대역
     def candidates(self, pos: np.ndarray) -> np.ndarray:
@@ -48,11 +130,21 @@ class FDistModel:
         r = np.linalg.norm(np.asarray(pos, float), axis=1)[:, None]
         return (r >= self.rmin[None]) & (r <= self.rmax[None])
 
-    def unary(self, pos: np.ndarray) -> np.ndarray:
+    def _band(self, pos: np.ndarray) -> np.ndarray:
         """(n,14) log: 대역 안 0, 밖은 벗어난 거리만큼 가우스로 감점."""
         r = np.linalg.norm(np.asarray(pos, float), axis=1)[:, None]
         ex = np.maximum(self.rmin[None] - r, 0) + np.maximum(r - self.rmax[None], 0)
         return -0.5 * (ex / self.sigma_out) ** 2
+
+    def unary(self, pos: np.ndarray) -> np.ndarray:
+        """(n,14) log. 대역 점수 + (calibrate 후) 세션 yaw로 돌린 배열 위치와의 수평 방향 일치."""
+        u = self._band(pos)
+        if self.oriented:
+            Eh = self._E()[1:] @ self._rot(self.mu).T                          # (14,2)
+            O = np.asarray(pos, float)[:, :2]
+            d2 = ((O[:, None] - Eh[None]) ** 2).sum(-1)
+            u = u - d2 / (2 * self._sigma_yaw(np.linalg.norm(Eh, axis=1))[None] ** 2)
+        return u
 
     # ------------------------------------------------------------------ 2) 사슬 주변확률
     def _pair(self, dist: float) -> np.ndarray:
@@ -61,12 +153,22 @@ class FDistModel:
         ex = np.maximum(lo - dist, 0) + np.maximum(dist - hi, 0)
         return -0.5 * (ex / self.sigma_pair) ** 2
 
+    def _pair_vec(self, dv: np.ndarray) -> np.ndarray:
+        """(14,14) log: 이웃 수평 변위 dv가 R(μ)·(E_b − E_a)와 맞는지(calibrate 후)."""
+        Eh = self._E()[1:] @ self._rot(self.mu).T
+        V = Eh[None] - Eh[:, None]                                             # (a,b,2)
+        d2 = ((dv[None, None] - V) ** 2).sum(-1)
+        return -d2 / (2 * self._sigma_yaw(np.linalg.norm(V, axis=-1)) ** 2)
+
     def marginals(self, pos: np.ndarray, unary: np.ndarray | None = None) -> np.ndarray:
         """(n,14) 타격별 자음 사후확률(사전 없이). unary: 추가 log 점수(예: 분류기)."""
         pos = np.asarray(pos, float)
         n = len(pos)
         u = self.unary(pos) + (unary if unary is not None else 0)
-        psi = [self._pair(float(np.linalg.norm(pos[k] - pos[k - 1]))) for k in range(1, n)]
+        if self.oriented:
+            psi = [self._pair_vec(pos[k, :2] - pos[k - 1, :2]) for k in range(1, n)]
+        else:
+            psi = [self._pair(float(np.linalg.norm(pos[k] - pos[k - 1]))) for k in range(1, n)]
         la = np.zeros((n, 14))
         la[0] = u[0]
         for k in range(1, n):
@@ -84,6 +186,9 @@ class FDistModel:
         """pos (n,3), idx (m,n) 키 번호+1(Lexicon.strings 형식). 반환 (m,) log 점수."""
         pos = np.asarray(pos, float)
         n = len(pos)
+        if self.oriented:
+            _, _, ll = self._yaw_fit(pos, idx, self.flip, self.mu, self.kappa)
+            return ll + self._band(pos)[np.arange(n)[None], idx - 1].sum(1)
         Q = np.vstack([np.zeros(3), pos])                                     # 관측 점: F, p_1..p_n
         iu, ju = np.triu_indices(n + 1, 1)
         do = np.linalg.norm(Q[iu] - Q[ju], axis=1)                            # (L,)
@@ -92,7 +197,7 @@ class FDistModel:
         de = np.linalg.norm(E[:, iu] - E[:, ju], axis=-1)                     # (m, L)
         s = np.clip((de @ do) / np.maximum((de ** 2).sum(1), 1e-9), self.s_lo, self.s_hi)
         ll = -((do[None] - s[:, None] * de) ** 2).sum(1) / (2 * self.sigma_pair ** 2)
-        u = self.unary(pos)
+        u = self._band(pos)
         return ll + u[np.arange(n)[None], idx - 1].sum(1)
 
     def rank_words(self, lex, pos: np.ndarray, lam: float = 0.5, unary: np.ndarray | None = None):
