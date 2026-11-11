@@ -5,8 +5,11 @@ isolated_features : 개별 키 시도(F 정지 -> 키). Stage 1 변위 + 궤적 
 word_presses      : 연속 타이핑 단어. 단어 시작(F 정지)부터 자세를 계속 적분하고, 자음 키 타격마다 수평 속도를 0으로
                     놓는(ZUPT) 구간 적분으로 '타격 간 변위'를 구해 누적 -> 각 타격의 F 기준 위치 (aLeak식 상대 벡터 연결).
                     타격 간격 ikt(Stage 4 keystroke interval)와 타격별 tilt도 함께 기록.
+                    tail = 마지막 자음 타격 → F 복귀 후 정지까지 시간. 끝 자음 뒤에 모음을 더 치는 단어(누나)는
+                    끝이 받침인 단어(눈)보다 늦게 멈춘다 → 자음열이 같은 단어를 가르는 단서(decode.TimingModel).
                     타격 구분은 키 로그(키다운) 시각을 쓴다(오라클 분할). IMU만으로 분할하는 성능은 detect_presses로 따로 잰다.
 detect_presses    : Stage 2. jerk 피크 + 충격 방향 게이트 + aLeak Algorithm 1(타이핑 리듬 = FFT f_type 또는 중앙 간격).
+refine_presses    : detect_presses 뒤 타격 수 보정. 단어가 F로 돌아와 끝나는 '닫힘'으로 약한 후보 타격을 검증해 추가.
 
 증강(학습 fold 전용): isolated_features(..., aug=Augment(...))는 시도마다 진폭 배율·잡음·구간 시간이동을 무작위로 넣어
 특징을 다시 계산한다. 평가 시에는 학습 fold의 시도에만 증강본을 붙인다(scripts/evaluate.py).
@@ -24,6 +27,9 @@ from .motion import G, MotionParams, find_onset, find_press, horizontal_basis, k
 N_PATH = 8
 N_WIN = 48          # 정규화용 원시 윈도우 길이(리샘플)
 RETURN_S = 0.35     # 개별 키: 타격 후 F 복귀까지 포함할 길이(QwertyRing: 윈도우 전체 평균 피치)
+TAIL_SKIP_S = 0.05   # 단어 끝: 마지막 타격 충격 구간은 건너뛰고
+TAIL_STILL_S = 0.25  # 이 길이만큼 자이로가 정지 임계 아래로 유지되는 첫 시점 = F 복귀 후 정지
+TAIL_MAX_S = 2.5     # 이 안에 정지가 없으면 NaN
 
 
 @dataclass
@@ -54,6 +60,21 @@ def _quiet_after(t, acc, gyr, ip, max_n=35):
     return k0 + int(np.argmin(act))
 
 
+def tail_settle(t, gyr, ip: int, still_dps: float = 8.0) -> float:
+    """마지막 타격 ip 뒤 F 복귀를 마치고 손가락이 멈춘 시점까지 시간[s](없으면 NaN). IMU만 쓴다."""
+    dt = float(np.median(np.diff(t[max(0, ip - 50):ip + 51])))
+    gn = np.degrees(np.linalg.norm(gyr, axis=1)) < still_dps
+    w = max(2, int(round(TAIL_STILL_S / dt)))
+    j0 = ip + int(round(TAIL_SKIP_S / dt))
+    j1 = min(len(t) - w, ip + int(round(TAIL_MAX_S / dt)))
+    if j1 <= j0:
+        return float("nan")
+    # 길이 w 창이 모두 정지인 첫 시작점(누적합으로)
+    c = np.concatenate([[0], np.cumsum(~gn[j0:j1 + w])])
+    ok = np.where(c[w:w + j1 - j0] - c[:j1 - j0] == 0)[0]
+    return float(t[j0 + ok[0]] - t[ip]) if len(ok) else float("nan")
+
+
 def _rotations(t, gyr, i0, i1, bias):
     """[i0, i1] 각 샘플의 body(t) -> body(i0) 회전."""
     R = np.eye(3)
@@ -73,8 +94,10 @@ def _lin_acc(t, acc, gyr, i0, i1, g0, bias, Rs=None):
     return a, Rs
 
 
-def _segment_disp(tt, a, gz, path_pts=0, kalman_rho=0.0):
-    """한 구간: (선택) 칼만 추세 제거, 시작 속도 0, 끝 수평 속도 0 보정 후 변위(및 경로 샘플)."""
+def _segment_disp(tt, a, gz, path_pts=0, kalman_rho=0.0, full_zupt=False):
+    """한 구간: (선택) 칼만 추세 제거, 시작 속도 0, 끝 수평 속도 0 보정 후 변위(및 경로 샘플).
+    full_zupt: 끝 속도를 수직까지 0으로(키를 누른 순간·F 정지는 3축 모두 정지). 수평 성분 결과는 그대로이고
+               수직 성분만 달라진다 → 3차원 위치(F 기준 거리)용."""
     tt = tt - tt[0]
     dt = np.diff(tt)[:, None]
     if kalman_rho > 0:
@@ -82,7 +105,7 @@ def _segment_disp(tt, a, gz, path_pts=0, kalman_rho=0.0):
         a = a - (tr - np.outer(tr @ gz, gz))
     v = np.vstack([np.zeros(3), np.cumsum((a[1:] + a[:-1]) / 2 * dt, axis=0)])
     if tt[-1] > 0:
-        ve = v[-1] - (v[-1] @ gz) * gz
+        ve = v[-1] if full_zupt else v[-1] - (v[-1] @ gz) * gz
         v = v - np.outer(tt / tt[-1], ve)
     s = np.vstack([np.zeros(3), np.cumsum((v[1:] + v[:-1]) / 2 * dt, axis=0)])
     if path_pts:
@@ -222,6 +245,12 @@ def word_presses(sd, p: MotionParams | None = None, times: dict | None = None, w
     """연속 타이핑 정상 단어의 자음 타격별 특징.
     열: trial_id, word, idx, n, key, u, w(F 기준 누적 위치), du, dw(직전 타격 대비), ikt(직전 타격(첫 타격은 움직임 시작)
         부터의 시간[s] — Stage 4 keystroke interval), nv(정답 단어에서 직전 자음과의 사이 오른손 키 수; 학습용),
+        tail(마지막 타격 → F 복귀 정지 시간[s], 단어 안 모든 행에 같은 값), nvt(정답 단어의 끝 자음 뒤 오른손 키 수; 학습용),
+        z, dz(수직 누적/구간 변위 mm),
+        px, py, pz(F 기준 3차원 위치[mm], 닫힘 보정), r3(= |px,py,pz|, F와의 3차원 거리), closure(보정 전 닫힘 오차 mm)
+        — 단어는 F에서 시작해 F로 끝난다. 마지막 타격 → F 정지(tail)까지 복귀 구간도 적분해 그 끝 위치(원래 0이어야 함)를
+          닫힘 오차로 보고 시간에 비례해 빼 준다(드리프트 보정). F 정지를 못 찾으면 보정 없이 closure=NaN.
+          fdist(기기·센서 독립 3차원 거리 디코더)가 이 열을 쓴다.
         tilt_a/b(타격 전후 중간점까지 윈도우 평균 자세), raw*
     times: {trial_id: 타격 시각 배열[s, host]} 를 주면 키 로그 대신 그 시각(예: detect_presses 결과)으로 분할한다.
            이때 key 열은 ''(타격별 정답을 알 수 없음)."""
@@ -274,28 +303,37 @@ def word_presses(sd, p: MotionParams | None = None, times: dict | None = None, w
         B = np.stack([e1, e2, gz])
         # 정답 단어의 오른손 키 수(직전 자음 ~ 이 자음 사이): Stage 4 타이밍 모델 학습용
         nv = [0] * len(ips)
+        nvt = -1
         if times is None:
             try:
                 ks = to_keys(x.target)
                 cpos = [i for i, c in enumerate(ks) if c in LEFT_KEYS]
                 if len(cpos) == len(ips):
                     nv = [0] + [b - a_ - 1 for a_, b in zip(cpos, cpos[1:])]
+                    nvt = len(ks) - 1 - cpos[-1]
             except ValueError:
                 pass
+        tail = tail_settle(t, gyr, ips[-1], p.still_dps)
         a00, b00 = _tilt(Rs_all[:1], g0, ctx.ax_a, ctx.ax_b)      # 단어 시작(F 정지) 자세
         pos = np.zeros(3)
         start = i0
+        P3, T3 = [], []                                     # 타격별 3차원 누적 위치(세계 B 좌표, m)와 시각
+        k0 = len(rows)
         for k, (ip, ie) in enumerate(zip(ips, ends)):
             ie = max(ie, start + 2)
             seg = slice(start - i0, ie - i0 + 1)
-            d, _, _ = _segment_disp(t[start:ie + 1], a[seg], gz, 0, p.kalman_rho)
+            d, _, _ = _segment_disp(t[start:ie + 1], a[seg], gz, 0, p.kalman_rho, full_zupt=True)
             pos = pos + d
             uw = B @ pos * 1000
             du = B @ d * 1000
+            P3.append(uw)
+            T3.append(t[ie])
             f = {"trial_id": x.trial_id, "word": x.target, "idx": k, "n": len(ips), "key": kd.key.iloc[k],
-                 "u": uw[0], "w": uw[1], "du": du[0], "dw": du[1], "seg_dur": t[ie] - t[start],
+                 "u": uw[0], "w": uw[1], "z": uw[2], "du": du[0], "dw": du[1], "dz": du[2],
+                 "seg_dur": t[ie] - t[start],
                  "word_t": t[ip] - t[i0], "onset_src": src,
-                 "ikt": t[ip] - (t[ips[k - 1]] if k else t[i0]), "nv": nv[k], "mag_used": mag_used}
+                 "ikt": t[ip] - (t[ips[k - 1]] if k else t[i0]), "nv": nv[k], "tail": tail, "nvt": nvt,
+                 "mag_used": mag_used}
             # 타격 윈도우 = 직전 타격과의 중간 ~ 다음 타격과의 중간(첫/끝은 시작/끝)
             wa = i0 if k == 0 else (ips[k - 1] + ip) // 2
             wb = i_last if k == len(ips) - 1 else (ip + ips[k + 1]) // 2
@@ -307,6 +345,22 @@ def word_presses(sd, p: MotionParams | None = None, times: dict | None = None, w
                 f["win"] = _window(t, a[seg], Rs[seg], gyr, B, start, ie, bias)
             rows.append(f)
             start = ie
+        # 단어 끝 F 복귀: 마지막 타격 구간 끝 → F 정지까지 적분. 끝 위치는 F(0)여야 하므로 그 차이(닫힘 오차)를
+        # 단어 시작부터의 시간에 비례해 각 타격 위치에서 뺀다.
+        P3 = np.array(P3)
+        closure = np.full(3, np.nan)
+        if np.isfinite(tail):
+            i_set = min(len(t) - 1, int(np.searchsorted(t, t[ips[-1]] + tail)))
+            if i_set > start + 2:
+                Rr = _rotations(t, gyr, i0, i_set, bias)
+                ar, _ = _lin_acc(t, acc, gyr, start, i_set, g0, bias, Rr[start - i0:])
+                d, _, _ = _segment_disp(t[start:i_set + 1], ar, gz, 0, p.kalman_rho, full_zupt=True)
+                closure = B @ (pos + d) * 1000
+                frac = (np.array(T3) - t[i0]) / max(t[i_set] - t[i0], 1e-6)
+                P3 = P3 - frac[:, None] * closure[None]
+        for j, r in enumerate(rows[k0:]):
+            r.update({"px": P3[j, 0], "py": P3[j, 1], "pz": P3[j, 2], "r3": float(np.linalg.norm(P3[j])),
+                      "closure": float(np.linalg.norm(closure))})
     return pd.DataFrame(rows)
 
 
@@ -435,4 +489,115 @@ def detect_presses(sd, k_mad: float = 8.0, min_sep_s: float = 0.18, alpha: float
         left = kd[kd.key.isin(LEFT_KEYS)].host_ns.to_numpy() / 1e9
         right = kd[~kd.key.isin(LEFT_KEYS)].host_ns.to_numpy() / 1e9
         out.append({"trial_id": x.trial_id, "word": x.target, "det": det, "left": left, "right": right, "tpace": tpace})
+    return pd.DataFrame(out)
+
+
+# --------------------------------------------------------------------------- F 복귀 닫힘으로 타격 수 보정
+def _closure_mm(ctx, p: MotionParams, cue_s: float, ips: list[int]) -> float:
+    """타격 인덱스 ips로 단어를 적분(타격마다 3축 ZUPT)하고 마지막 타격 → F 정지까지 복귀까지 이었을 때
+    끝 위치와 F(0)의 거리[mm] = 닫힘 오차. F 정지를 못 찾으면 NaN. (word_presses와 같은 적분, 자력계 없음)"""
+    t, acc, gyr = ctx.t, ctx.acc, ctx.gyr
+    ips = sorted(ips)
+    i0, _ = find_onset(t, acc, gyr, ips[0], cue_s - 0.05, p)
+    ends = [min(_quiet_after(t, acc, gyr, ip, max_n=12), (ips[k + 1] - 1) if k + 1 < len(ips) else 10 ** 9)
+            for k, ip in enumerate(ips)]
+    tail = tail_settle(t, gyr, ips[-1], p.still_dps)
+    if not np.isfinite(tail) or ends[-1] <= i0 + 2:
+        return float("nan")
+    i_set = min(len(t) - 1, int(np.searchsorted(t, t[ips[-1]] + tail)))
+    g0 = acc[max(0, i0 - ctx.n_w):i0].mean(0)
+    bias = gyr[max(0, i0 - ctx.n_w):i0].mean(0)
+    gz = g0 / np.linalg.norm(g0)
+    a, _ = _lin_acc(t, acc, gyr, i0, max(i_set, ends[-1]), g0, bias)
+    pos = np.zeros(3)
+    start = i0
+    for ie in ends + [i_set]:
+        ie = max(ie, start + 2)
+        d, _, _ = _segment_disp(t[start:ie + 1], a[start - i0:ie - i0 + 1], gz, 0, p.kalman_rho, full_zupt=True)
+        pos = pos + d
+        start = ie
+    return float(np.linalg.norm(pos) * 1000)
+
+
+def refine_presses(sd, det: pd.DataFrame, p: MotionParams | None = None, ratio_min: float = 1.0,
+                   impact_min: float = 2.5, min_sep_s: float = 0.18, gain: float = 0.6, min_drop_mm: float = 5.0,
+                   max_add: int = 2, k_mad: float = 8.0, allow_remove: bool = False) -> pd.DataFrame:
+    """Stage 2 검출(detect_presses, 그대로 둠) 뒤에 붙는 타격 수 보정. 단어는 F에서 시작해 F로 끝난다는 제약을 쓴다.
+
+    진짜 타격은 손가락이 키에서 멈추는 순간이라, 그 시각에 속도 0(ZUPT)을 넣으면 적분 드리프트가 줄어
+    F로 돌아온 끝 위치가 F에 더 가까워진다(닫힘 오차 감소). 가짜 타격에 속도 0을 넣으면 오히려 커진다.
+      추가: 단어 구간(F에서 출발 ~ F 복귀 정지) 안의 약한 후보 — jerk 국소 최대가 단어 임계의 ratio_min배 이상이고
+            위쪽 충격이 impact_min 이상(검출의 충격 게이트 6 m/s²에 걸려 빠진 타격; S01 놓침의 절반) —
+            를 하나씩 넣어 보고, 닫힘 오차가 gain배 미만 그리고 min_drop_mm 이상 줄면 받아들인다(최대 max_add개).
+      제거(allow_remove, 기본 끔): 마지막 검출을 빼 봤을 때 같은 기준으로 닫힘이 좋아지면 뺀다(F 복귀 착지가
+            타격으로 잡힌 경우). S01에서는 진짜 마지막 타격도 빼 버려(고침 0~1, 망침 7~14) 끔 — 닫힘만으로는
+            '마지막 키 누름'과 'F 착지'를 못 가른다.
+    기본값(S01 세 세션 249단어): 개수 일치 88→90%, 96→98%, 97→97% — 고친 단어 3, 망친 단어 0.
+    gain을 0.85 이상으로 느슨하게 하면 망치는 단어가 생긴다. 근본적으로 못 찾는 놓침(충격도 jerk도 거의 없는
+    부드러운 타격, S01 놓침의 약 절반)은 이 방법으로도 안 된다.
+    반환: det 복사본. det = 보정된 타격 시각, n_added, n_removed, closure0/closure(보정 전후 mm) 열 추가."""
+    from .dataset import jerk
+    p = p or MotionParams()
+    ctx = _Ctx(sd, p)
+    t, acc = ctx.t, ctx.acc
+    j = jerk(sd.imu)
+    tr = sd.trials.set_index("trial_id")
+    out = []
+    for _, r in det.iterrows():
+        r = r.to_dict()
+        x = tr.loc[r["trial_id"]]
+        cue = x.cue_ns / 1e9
+        dt_ = np.asarray(r["det"], float)
+        r["n_added"], r["n_removed"], r["closure0"], r["closure"] = 0, 0, np.nan, np.nan
+        if not len(dt_):
+            out.append(r)
+            continue
+        ips = sorted({int(np.argmin(np.abs(t - s))) for s in dt_})
+        c0 = _closure_mm(ctx, p, cue, ips)
+        r["closure0"] = r["closure"] = c0
+        if not np.isfinite(c0):
+            out.append(r)
+            continue
+        lo, hi = np.searchsorted(t, [cue, x.end_ns / 1e9 + 0.05])
+        jj = j[lo:hi]
+        thr = np.median(jj) + k_mad * np.median(np.abs(jj - np.median(jj))) + 1e-6
+        g0 = acc[lo:min(hi, lo + 23)].mean(0)
+        gz = g0 / np.linalg.norm(g0)
+        i0, _ = find_onset(t, acc, ctx.gyr, ips[0], cue - 0.05, p)
+        tail = tail_settle(t, ctx.gyr, ips[-1], p.still_dps)
+        i_end = min(hi - 1, int(np.searchsorted(t, t[ips[-1]] + (tail if np.isfinite(tail) else 0.0))))
+        cand = []
+        for i in range(max(i0, lo + 1), i_end):
+            k = i - lo
+            if jj[k] >= ratio_min * thr and jj[k] >= jj[k - 1] and jj[k] >= jj[k + 1] and \
+                    impact_up(acc, gz, i) >= impact_min:
+                cand.append(i)
+        # 0.1초 안의 후보는 가장 센 것 하나만
+        cand = sorted(cand, key=lambda i: -j[i])
+        keep = []
+        for i in cand:
+            if all(abs(t[i] - t[q]) >= 0.1 for q in keep):
+                keep.append(i)
+        c = c0
+        for _ in range(max_add):
+            trial = [i for i in keep if all(abs(t[i] - t[q]) >= min_sep_s for q in ips)]
+            best = None
+            for i in trial:
+                ci = _closure_mm(ctx, p, cue, ips + [i])
+                if np.isfinite(ci) and (best is None or ci < best[1]):
+                    best = (i, ci)
+            if best is None or not (best[1] < gain * c and c - best[1] >= min_drop_mm):
+                break
+            ips = sorted(ips + [best[0]])
+            c = best[1]
+            r["n_added"] += 1
+        if allow_remove and len(ips) >= 2 and r["n_added"] == 0:
+            cr = _closure_mm(ctx, p, cue, ips[:-1])
+            if np.isfinite(cr) and cr < gain * c and c - cr >= min_drop_mm:
+                ips = ips[:-1]
+                c = cr
+                r["n_removed"] = 1
+        r["det"] = np.asarray(t[np.array(ips)], float)
+        r["closure"] = c
+        out.append(r)
     return pd.DataFrame(out)
