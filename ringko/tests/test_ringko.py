@@ -300,6 +300,28 @@ def test_tail_return():
     assert abs(sc[0][0] - sc[1][0]) < 1e-9
 
 
+def test_fdist_rotation_invariant():
+    """F 기준 3차원 거리 디코더: 학습 없이, 센서가 어떻게 돌아가 있어도 같은 답."""
+    from ringko.decode import KI, Lexicon
+    from ringko.fdist import FDistModel, key_xyz
+    from ringko.motion import rotvec_to_mat
+    P = key_xyz()
+    assert np.allclose(P[KI["f"], :2], 0) and abs(np.linalg.norm(P[KI["s"], :2]) - 38) < 1e-9
+    fd = FDistModel()
+    rng = np.random.default_rng(7)
+    lex = Lexicon([("사람", 50.0), ("바다", 50.0), ("한국", 50.0), ("학교", 50.0), ("나라", 50.0), ("가게", 50.0)])
+    for w in ["사람", "한국", "학교"]:
+        idx = [KI[c] for c in to_consonant_keys(w)]
+        pos = P[idx] * 1.1 + rng.normal(0, 2, (len(idx), 3))             # 배율 1.1 + 잡음
+        assert fd.candidates(pos)[np.arange(len(idx)), idx].all()          # 정답 키가 대역 후보 안
+        R = rotvec_to_mat(rng.normal(0, 1.5, 3))                            # 아무렇게나 낀 센서
+        a = fd.rank_words(lex, pos)
+        b = fd.rank_words(lex, pos @ R.T)
+        assert a[0][1] == w and b[0][1] == w and np.allclose([x for x, _ in a], [x for x, _ in b])
+        M = fd.marginals(pos @ R.T)
+        assert np.allclose(M.sum(1), 1) and np.allclose(M, fd.marginals(pos))
+
+
 def test_wear_calibration():
     from ringko.decode import KEYS, Geometry, Lexicon
     words = ["한국", "학교", "사람", "바다", "하늘", "시간", "친구", "택시", "나라", "가족", "도시", "마음"]

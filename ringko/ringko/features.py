@@ -93,8 +93,10 @@ def _lin_acc(t, acc, gyr, i0, i1, g0, bias, Rs=None):
     return a, Rs
 
 
-def _segment_disp(tt, a, gz, path_pts=0, kalman_rho=0.0):
-    """한 구간: (선택) 칼만 추세 제거, 시작 속도 0, 끝 수평 속도 0 보정 후 변위(및 경로 샘플)."""
+def _segment_disp(tt, a, gz, path_pts=0, kalman_rho=0.0, full_zupt=False):
+    """한 구간: (선택) 칼만 추세 제거, 시작 속도 0, 끝 수평 속도 0 보정 후 변위(및 경로 샘플).
+    full_zupt: 끝 속도를 수직까지 0으로(키를 누른 순간·F 정지는 3축 모두 정지). 수평 성분 결과는 그대로이고
+               수직 성분만 달라진다 → 3차원 위치(F 기준 거리)용."""
     tt = tt - tt[0]
     dt = np.diff(tt)[:, None]
     if kalman_rho > 0:
@@ -102,7 +104,7 @@ def _segment_disp(tt, a, gz, path_pts=0, kalman_rho=0.0):
         a = a - (tr - np.outer(tr @ gz, gz))
     v = np.vstack([np.zeros(3), np.cumsum((a[1:] + a[:-1]) / 2 * dt, axis=0)])
     if tt[-1] > 0:
-        ve = v[-1] - (v[-1] @ gz) * gz
+        ve = v[-1] if full_zupt else v[-1] - (v[-1] @ gz) * gz
         v = v - np.outer(tt / tt[-1], ve)
     s = np.vstack([np.zeros(3), np.cumsum((v[1:] + v[:-1]) / 2 * dt, axis=0)])
     if path_pts:
@@ -243,6 +245,11 @@ def word_presses(sd, p: MotionParams | None = None, times: dict | None = None, w
     열: trial_id, word, idx, n, key, u, w(F 기준 누적 위치), du, dw(직전 타격 대비), ikt(직전 타격(첫 타격은 움직임 시작)
         부터의 시간[s] — Stage 4 keystroke interval), nv(정답 단어에서 직전 자음과의 사이 오른손 키 수; 학습용),
         tail(마지막 타격 → F 복귀 정지 시간[s], 단어 안 모든 행에 같은 값), nvt(정답 단어의 끝 자음 뒤 오른손 키 수; 학습용),
+        z, dz(수직 누적/구간 변위 mm),
+        px, py, pz(F 기준 3차원 위치[mm], 닫힘 보정), r3(= |px,py,pz|, F와의 3차원 거리), closure(보정 전 닫힘 오차 mm)
+        — 단어는 F에서 시작해 F로 끝난다. 마지막 타격 → F 정지(tail)까지 복귀 구간도 적분해 그 끝 위치(원래 0이어야 함)를
+          닫힘 오차로 보고 시간에 비례해 빼 준다(드리프트 보정). F 정지를 못 찾으면 보정 없이 closure=NaN.
+          fdist(기기·센서 독립 3차원 거리 디코더)가 이 열을 쓴다.
         tilt_a/b(타격 전후 중간점까지 윈도우 평균 자세), raw*
     times: {trial_id: 타격 시각 배열[s, host]} 를 주면 키 로그 대신 그 시각(예: detect_presses 결과)으로 분할한다.
            이때 key 열은 ''(타격별 정답을 알 수 없음)."""
@@ -309,15 +316,20 @@ def word_presses(sd, p: MotionParams | None = None, times: dict | None = None, w
         a00, b00 = _tilt(Rs_all[:1], g0, ctx.ax_a, ctx.ax_b)      # 단어 시작(F 정지) 자세
         pos = np.zeros(3)
         start = i0
+        P3, T3 = [], []                                     # 타격별 3차원 누적 위치(세계 B 좌표, m)와 시각
+        k0 = len(rows)
         for k, (ip, ie) in enumerate(zip(ips, ends)):
             ie = max(ie, start + 2)
             seg = slice(start - i0, ie - i0 + 1)
-            d, _, _ = _segment_disp(t[start:ie + 1], a[seg], gz, 0, p.kalman_rho)
+            d, _, _ = _segment_disp(t[start:ie + 1], a[seg], gz, 0, p.kalman_rho, full_zupt=True)
             pos = pos + d
             uw = B @ pos * 1000
             du = B @ d * 1000
+            P3.append(uw)
+            T3.append(t[ie])
             f = {"trial_id": x.trial_id, "word": x.target, "idx": k, "n": len(ips), "key": kd.key.iloc[k],
-                 "u": uw[0], "w": uw[1], "du": du[0], "dw": du[1], "seg_dur": t[ie] - t[start],
+                 "u": uw[0], "w": uw[1], "z": uw[2], "du": du[0], "dw": du[1], "dz": du[2],
+                 "seg_dur": t[ie] - t[start],
                  "word_t": t[ip] - t[i0], "onset_src": src,
                  "ikt": t[ip] - (t[ips[k - 1]] if k else t[i0]), "nv": nv[k], "tail": tail, "nvt": nvt,
                  "mag_used": mag_used}
@@ -332,6 +344,22 @@ def word_presses(sd, p: MotionParams | None = None, times: dict | None = None, w
                 f["win"] = _window(t, a[seg], Rs[seg], gyr, B, start, ie, bias)
             rows.append(f)
             start = ie
+        # 단어 끝 F 복귀: 마지막 타격 구간 끝 → F 정지까지 적분. 끝 위치는 F(0)여야 하므로 그 차이(닫힘 오차)를
+        # 단어 시작부터의 시간에 비례해 각 타격 위치에서 뺀다.
+        P3 = np.array(P3)
+        closure = np.full(3, np.nan)
+        if np.isfinite(tail):
+            i_set = min(len(t) - 1, int(np.searchsorted(t, t[ips[-1]] + tail)))
+            if i_set > start + 2:
+                Rr = _rotations(t, gyr, i0, i_set, bias)
+                ar, _ = _lin_acc(t, acc, gyr, start, i_set, g0, bias, Rr[start - i0:])
+                d, _, _ = _segment_disp(t[start:i_set + 1], ar, gz, 0, p.kalman_rho, full_zupt=True)
+                closure = B @ (pos + d) * 1000
+                frac = (np.array(T3) - t[i0]) / max(t[i_set] - t[i0], 1e-6)
+                P3 = P3 - frac[:, None] * closure[None]
+        for j, r in enumerate(rows[k0:]):
+            r.update({"px": P3[j, 0], "py": P3[j, 1], "pz": P3[j, 2], "r3": float(np.linalg.norm(P3[j])),
+                      "closure": float(np.linalg.norm(closure))})
     return pd.DataFrame(rows)
 
 
