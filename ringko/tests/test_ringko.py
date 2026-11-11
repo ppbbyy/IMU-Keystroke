@@ -348,6 +348,34 @@ def test_fdist_gravity_yaw():
         assert abs(M0[0, KI["d"]] - M0[0, KI["g"]]) < 1e-9
 
 
+def test_closure_zupt_principle():
+    """refine_presses의 근거: 진짜 정지(타격) 시각에 속도 0을 넣으면 F 복귀 닫힘 오차가 줄고, 움직이는 중간에 넣으면 는다."""
+    from ringko.features import _segment_disp
+    fs = 238
+    t = np.arange(0, 1.5, 1 / fs)
+    # F(0) → 키(+38mm, t=0.5에서 정지) → F(0, t=1.5): 각 0.5/1.0초 구간 사인형 가속, 가속도계 바이어스 0.05 m/s²
+    def leg(t0, t1, dx):
+        T = t1 - t0
+        tau = np.clip((t - t0) / T, 0, 1)
+        inside = (t >= t0) & (t <= t1)
+        return np.where(inside, dx * 2 * np.pi / T ** 2 * np.sin(2 * np.pi * tau), 0.0)
+    ax = leg(0.0, 0.5, 0.038) + leg(0.5, 1.5, -0.038) + 0.05
+    a = np.stack([ax, np.zeros_like(ax), np.zeros_like(ax)], 1)
+    gz = np.array([0.0, 0.0, 1.0])
+
+    def closure(split_s):
+        pos, start = np.zeros(3), 0
+        for ie in [int(split_s * fs), len(t) - 1]:
+            d, _, _ = _segment_disp(t[start:ie + 1], a[start:ie + 1], gz, full_zupt=True)
+            pos, start = pos + d, ie
+        return np.linalg.norm(pos) * 1000
+
+    whole, _, _ = _segment_disp(t, a, gz, full_zupt=True)
+    c_none = np.linalg.norm(whole) * 1000
+    assert closure(0.5) < 0.6 * c_none                 # 진짜 정지에 ZUPT → 닫힘 개선
+    assert closure(0.25) > closure(0.5) * 3            # 움직이는 중간(속도 최대)에 ZUPT → 크게 나빠짐
+
+
 def test_wear_calibration():
     from ringko.decode import KEYS, Geometry, Lexicon
     words = ["한국", "학교", "사람", "바다", "하늘", "시간", "친구", "택시", "나라", "가족", "도시", "마음"]

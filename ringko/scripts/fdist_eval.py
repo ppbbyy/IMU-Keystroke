@@ -12,6 +12,7 @@
   설정을 나란히: 거리만(닫힘 보정 없음 u,w,z) / 거리만(닫힘 보정 px,py,pz) / 중력 + 세션 yaw(닫힘 보정)
   '중력 + 세션 yaw'는 시험 세션의 라벨 없는 단어로 손잡이·yaw를 추정한다(FDistModel.calibrate).
 --imu  타격 시각을 키 로그 대신 detect_presses(Stage 2, 기존 코드 그대로)로. 이때 자음 지표는 타격 수가 맞는 단어만.
+--refine  (--imu와 함께) F 복귀 닫힘으로 타격 수 보정(features.refine_presses) 후 디코딩.
 """
 import argparse
 import sys
@@ -26,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from ringko.dataset import load_session  # noqa: E402
 from ringko.decode import KI, Lexicon  # noqa: E402
 from ringko.fdist import FDistModel  # noqa: E402
-from ringko.features import detect_presses, word_presses  # noqa: E402
+from ringko.features import detect_presses, refine_presses, word_presses  # noqa: E402
 from ringko.hangul import to_consonant_keys  # noqa: E402
 from ringko.plan import filter_vocab, load_vocab  # noqa: E402
 
@@ -88,6 +89,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("sessions", nargs="+")
     ap.add_argument("--imu", action="store_true", help="타격 시각 = detect_presses(키 로그 안 씀)")
+    ap.add_argument("--refine", action="store_true", help="(--imu) F 복귀 닫힘으로 타격 수 보정")
     ap.add_argument("--tol", type=float, default=12.0, help="대역 여유[mm]")
     ap.add_argument("--scale", default="0.8,1.25", help="배율 대역 s_lo,s_hi")
     ap.add_argument("--press", type=float, default=4.0, help="키 누름 깊이[mm]")
@@ -101,12 +103,17 @@ def main():
         v = filter_vocab(load_vocab(None, n), min_keys=1)
         lexes[f"{len(v)}단어"] = Lexicon(v)
     print(f"F 거리 대역: pitch {a.pitch}mm · 누름 {a.press}mm · 배율 [{s_lo}, {s_hi}] · 여유 {a.tol}mm · "
-          f"타격 {'IMU 검출' if a.imu else '키 로그'} · 학습 없음")
+          f"타격 {('IMU 검출 + 닫힘 보정' if a.refine else 'IMU 검출') if a.imu else '키 로그'} · 학습 없음")
     for d in a.sessions:
         sd = load_session(d)
         times = None
         if a.imu:
             det = detect_presses(sd)
+            if a.refine:
+                det = refine_presses(sd, det)
+                print(f"  타격 수 보정: 추가 {int(det.n_added.sum())}개")
+            ntrue = {r.trial_id: len(r.left) for _, r in det.iterrows()}
+            print(f"  단어별 타격 수 일치 {np.mean([len(r.det) == ntrue[r.trial_id] for _, r in det.iterrows()]):.1%}")
             times = dict(zip(det.trial_id, det.det))
         wp = word_presses(sd, times=times)
         print(f"\n{Path(d).name} · 단어 {wp.trial_id.nunique()} · 닫힘 오차 중앙값 "
