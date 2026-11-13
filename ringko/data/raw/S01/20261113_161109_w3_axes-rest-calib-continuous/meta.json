@@ -1,0 +1,77 @@
+{
+  "subject": "S01",
+  "wear": 3,
+  "site": "middle_phalanx",
+  "hand": "left",
+  "finger": "index",
+  "phases": [
+    "axes",
+    "rest",
+    "calib",
+    "continuous"
+  ],
+  "reps": 40,
+  "n_words": 40,
+  "seed": 4129929639,
+  "keyboard": "",
+  "layout": "dubeolsik",
+  "notes": "",
+  "port": "COM4",
+  "software": "0.1.0",
+  "python": "3.11.9",
+  "platform": "Windows-10-10.0.26200-SP0",
+  "params": {
+    "settle_still_s": 0.3,
+    "settle_gyro_dps": 15.0,
+    "settle_max_s": 4.0,
+    "min_gap_s": 0.5,
+    "key_timeout_s": 5.0,
+    "word_timeout_s": 25.0,
+    "rest_s": 5.0,
+    "rest_gyro_dps": 20.0,
+    "max_attempts": 3
+  },
+  "start": "2026-11-13T16:11:10.007547+09:00",
+  "complete": true,
+  "device": {
+    "fw": "ringko-fw-2",
+    "odr_hz": 238.0,
+    "acc_mg_per_lsb": 0.244,
+    "gyro_mdps_per_lsb": 70.0,
+    "mag_mgauss_per_lsb": 0.14,
+    "hfxo": 1
+  },
+  "keyboard_source": "hook",
+  "end": "2026-11-13T16:14:58.370635+09:00",
+  "ok_by_phase": {
+    "axes": 1,
+    "rest": 2,
+    "calib": 10,
+    "continuous": 40
+  },
+  "status_counts": {
+    "ok": 53
+  },
+  "stray_keys": 0,
+  "unsettled_cues": 0,
+  "ime_suspected": false,
+  "device_stats": {
+    "n_imu": 53132,
+    "n_mag": 17762,
+    "n_ping": 229,
+    "duration_s": 228.230658,
+    "rate_hz": 232.7951926598748,
+    "seq_gaps": 0,
+    "bad_lines": 0,
+    "header": {
+      "fw": "ringko-fw-2",
+      "odr_hz": 238.0,
+      "acc_mg_per_lsb": 0.244,
+      "gyro_mdps_per_lsb": 70.0,
+      "mag_mgauss_per_lsb": 0.14,
+      "hfxo": 1
+    },
+    "messages": []
+  },
+  "keys_while_not_front": 0
+}

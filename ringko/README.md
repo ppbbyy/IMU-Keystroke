@@ -51,25 +51,32 @@ python tests/test_ringko.py                                              # 검�
 `ringko.dataset.load_session()`이 핑으로 시계를 맞춰 IMU에 `host_ns`(키 로그와 같은 시계) 열을 붙인다.
 `trial_windows()`는 시도별 IMU 구간(첫 키다운 기준 ±0.8초)을 돌려준다.
 
-## 분석 파이프라인 (`docs/pipeline.docx` ⑧ 대응)
-| 단계 | 구현 | 기본값 (S01 결과로 결정) |
-|---|---|---|
-| 동기화 | `clock.py`, `dataset.load_session` | 켬 |
-| Stage 1 body→world, 평균 제거(ZUPT) | `motion.py`, `features.py` | 켬 |
-| Stage 1-(5) 칼만 스무딩 | `motion.kalman_trend`, `MotionParams.kalman_rho` | 끔 (ρ≤1e-5 변화 없음, 1e-3 악화) |
-| 자력계 조건부 결합 (hard-iron, ΔB 임계, 요 보정) | `magnet.py`, `MotionParams.mag_db_max` | 끔 = 6축 (효과 없음) |
-| Stage 2 피크 검출 + aLeak Algorithm 1 | `features.detect_presses(pace=median\|fft\|fft_session)` | median (fft_session과 동급, 단어별 fft는 부정확) |
-| 레이아웃 매칭 · 착용별 회전/오프셋 | `decode.Geometry` (`from_isolated`/`from_layout`, `fit` A·b, `adapt`) | A·b 켬. `adapt`(정답 없는 EM)는 실제 시험 세션에서 악화 → 쓰지 말 것 |
-| 채널별 정규화 · 증강(학습 fold만) | `preprocess.py`(윈도우), `features.Augment`(특징) | 평가 시 비교만 |
-| 행 구분 (A) QwertyRing 피치 | `decode.RowModel` (윈도우 전체 평균 tilt) | 끔 (행 단독 43~61%지만 디코더 이득 없음) |
-| 행 구분 (B) aLeak 내적 매칭 | `Lexicon.rank_words(score="both")`, `kbest_sequences`+`rerank_inner` | 단어 켬 κ=20 |
-| Stage 4 타이핑 간격 | `decode.TimingModel` | 단어 켬 τ=1 |
-| 사전 (자음열, 빈도 순위, 맥락 사전) | `decode.Lexicon`, `ConsonantLM`, `domain_vocab` | 켬 (맥락 사전은 `--domain`) |
+## 분석 파이프라인 — F 기준 3차원 자음 추론 (학습 없음)
+설계·수학·검증 전체: [`docs/consonant3d.md`](../docs/consonant3d.md). 이전의 2D 기하 디코더·분류기(학습형)는 제거했다.
 
 ```
-python scripts/evaluate.py <세션>                       # 자음/단어 Top-1/3/5 + 구성요소별 결과(단일 세션 CV)
-python scripts/ablation.py <세션> [--only kalman,mag,stage2,row,timing,inner,wear,aug]   # 켜고/끄기 비교
-python scripts/pipeline_test.py --train <학습> --test <시험> [--calib-words 10] [--domain 단어목록.txt]
+IMU ─▶ 타격 검출 features.detect_presses [+ refine_presses]   ← 기존 코드 그대로(수정 없음, 출력 동일 검증)
+    ─▶ 자이로 부호 align3d.choose_gyro_sign                     ← 정지 자세 중력 변화 + F 복귀 닫힘(라벨 없음)
+    ─▶ track3d.track_session                                    ← 타격 사이 적분, 타격 ZUPT, F→F 닫힘(∝T³) + 키보드 평면
+    ─▶ align3d.fit_alignment                                    ← yaw·손잡이 EM, 배율 = 사전 자음 빈도 모멘트(라벨 없음)
+    ─▶ consonant3d.Scorer3D                                     ← F 거리 min/max(keymap3d) + 방향 + 이전 타격 대비 이동
+    ─▶ decode.Lexicon.rank_words                                ← 기존 사전 자음열 후보·순위
 ```
-채택 설정의 시험 세션(20261103_181653, 50단어) 결과: 단어 Top-1 2.4만 어휘 16→20%, 4.4천 어휘 16→26%. 자음 Top-1은 47%로 그대로.
-모두 S01 한 번 착용한 데이터에서 얻은 값이므로, 착용 보정은 다시 낀 세션(`--wear 2`)으로 검증해야 한다.
+| 모듈 | 역할 |
+|---|---|
+| `track3d.py` | `WordTrack`(타격별 F 기준 3차원 위치 P, 이동 D, σ, 닫힘 오차), `strikes_from_detection/keylog` |
+| `keymap3d.py` | `Keyboard3D`: 키 칸 3차원 위치, 자음별 d_k · d_min · d_max, 키 단위 정규화(`table()`) |
+| `consonant3d.py` | `Alignment`, `Scorer3D(mode=sector\|box\|shell)`, `chain_marginals`(자음 사후확률) |
+| `align3d.py` | `choose_gyro_sign`, `fit_alignment`(라벨 없음), `fit_from_taps`(탭 몇 번), `moment_scale` |
+| `infer3d.py` | `infer_session`: 위 전체를 한 번에 |
+| `decode.py` | `Lexicon`, `ConsonantLM`(사전 텍스트로 만든 자음 트라이그램), `domain_vocab` |
+| `simulate.py` | 검증용 모의: 부착 방향 회전, 다른 IMU(축 규약·배율·바이어스·잡음·119Hz) |
+
+```
+python scripts/eval3d.py data/raw/S01/*                       # IMU만(검출+보정), 세션마다 라벨 없이 정렬
+python scripts/eval3d.py data/raw/S01/* --strikes keylog      # 오라클 타격
+python scripts/eval3d.py data/raw/S01/* --causal 20           # 앞 20단어로만 정렬(실시간 흉내)
+python scripts/eval3d.py data/raw/S01/* --perturb mount       # 모의: 센서 부착 방향 변경
+python scripts/eval3d.py data/raw/S01/* --mode shell --align none   # 거리만(완전 무보정)
+python scripts/check_axes.py <세션>                            # (참고) 자이로 축 부호 수동 검증
+```

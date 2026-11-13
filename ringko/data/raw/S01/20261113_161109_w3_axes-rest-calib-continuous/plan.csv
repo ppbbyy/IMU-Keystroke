@@ -1,0 +1,67 @@
+uid,phase,kind,target,expect,hint,block
+1,intro,info,"입력기를 영문(A)으로 바꾸세요 (한/영 키).
+링: 왼손 검지 중위지골(둘째 마디).
+진행 키(SPACE)는 오른손으로 누릅니다.",,,0
+2,axes,info,"[축 확인 15초] 링 낀 왼손을 키보드에서 떼고, 천천히 여러 방향으로 돌렸다가 1초씩 멈추기를 반복하세요.
+(손목 비틀기, 손등 들기, 손가락 세우기 등. 오른손으로 SPACE를 누르면 시작)",,,0
+3,axes,timed,15,,천천히 돌리고 멈추기,0
+4,rest,info,"[정지] 왼손 검지를 F 위에 올리고 완전히 멈추세요.
+준비되면 오른손으로 SPACE → 5초간 가만히.",,,0
+5,rest,rest,5,,F 위에서 정지,0
+6,calib,info,[F 보정] 'F'가 뜨면 F를 한 번 누르고 그대로 F 위에 둡니다.,,,0
+7,calib,key,F,f,ㄹ,0
+8,calib,key,F,f,ㄹ,0
+9,calib,key,F,f,ㄹ,0
+10,calib,key,F,f,ㄹ,0
+11,calib,key,F,f,ㄹ,0
+12,calib,key,F,f,ㄹ,0
+13,calib,key,F,f,ㄹ,0
+14,calib,key,F,f,ㄹ,0
+15,calib,key,F,f,ㄹ,0
+16,calib,key,F,f,ㄹ,0
+17,continuous,info,"[연속 타이핑] 단어를 평소 속도로: 자음=왼손 검지, 모음과 SPACE=오른손.
+단어마다 F에서 시작하고 끝나면 F로. 틀려도 BackSpace 없이 SPACE까지(나중에 다시 나옴).",,,0
+18,continuous,word,현,gus ,G U S  ␣,1
+19,continuous,word,만년필,akssusvlf ,A K S S U S V L F  ␣,2
+20,continuous,word,버림,qjfla ,Q J F L A  ␣,3
+21,continuous,word,효정,gywjd ,G Y W J D  ␣,4
+22,continuous,word,인삼,dlstka ,D L S T K A  ␣,5
+23,continuous,word,말벌,akfqjf ,A K F Q J F  ␣,6
+24,continuous,word,사회,tkghl ,T K G H L  ␣,7
+25,continuous,word,자동,wkehd ,W K E H D  ␣,8
+26,continuous,word,테크니컬,xpzmslzjf ,X P Z M S L Z J F  ␣,9
+27,continuous,word,식초,tlrch ,T L R C H  ␣,10
+28,continuous,word,공평,rhdvud ,R H D V U D  ␣,11
+29,continuous,word,바스켓,qktmzpt ,Q K T M Z P T  ␣,12
+30,continuous,word,나오미,skdhal ,S K D H A L  ␣,13
+31,continuous,word,기대,rleo ,R L E O  ␣,14
+32,continuous,word,과반수,rhkqkstn ,R H K Q K S T N  ␣,15
+33,continuous,word,어리,djfl ,D J F L  ␣,16
+34,continuous,word,박치기,qkrclrl ,Q K R C L R L  ␣,17
+35,continuous,word,선행,tjsgod ,T J S G O D  ␣,18
+36,continuous,word,성남,tjdska ,T J D S K A  ␣,19
+37,continuous,word,네이처,spdlcj ,S P D L C J  ␣,20
+38,continuous,word,카인,zkdls ,Z K D L S  ␣,21
+39,continuous,word,특강,xmrrkd ,X M R R K D  ␣,22
+40,continuous,word,팽창,vodckd ,V O D C K D  ␣,23
+41,continuous,word,알림,dkffla ,D K F F L A  ␣,24
+42,continuous,word,은데,dmsep ,D M S E P  ␣,25
+43,continuous,word,교통비,ryxhdql ,R Y X H D Q L  ␣,26
+44,continuous,word,모아야,ahdkdi ,A H D K D I  ␣,27
+45,continuous,word,시티,tlxl ,T L X L  ␣,28
+46,continuous,word,진공관,wlsrhdrhks ,W L S R H D R H K S  ␣,29
+47,continuous,word,이쿠,dlzn ,D L Z N  ␣,30
+48,continuous,word,방어선,qkddjtjs ,Q K D D J T J S  ␣,31
+49,continuous,word,후폭풍,gnvhrvnd ,G N V H R V N D  ␣,32
+50,continuous,word,학생회,gkrtodghl ,G K R T O D G H L  ␣,33
+51,continuous,word,착각,ckrrkr ,C K R R K R  ␣,34
+52,continuous,word,만난,akssks ,A K S S K S  ␣,35
+53,continuous,word,디오,eldh ,E L D H  ␣,36
+54,continuous,word,다행,ekgod ,E K G O D  ␣,37
+55,continuous,word,부탁,qnxkr ,Q N X K R  ␣,38
+56,continuous,word,제어,wpdj ,W P D J  ␣,39
+57,continuous,word,절벽,wjfqur ,W J F Q U R  ␣,40
+58,rest,info,"[정지] 왼손 검지를 F 위에 올리고 완전히 멈추세요.
+준비되면 오른손으로 SPACE → 5초간 가만히.",,,0
+59,rest,rest,5,,F 위에서 정지,0
+60,outro,info,끝났습니다. 잠시 기다리세요.,,,0
