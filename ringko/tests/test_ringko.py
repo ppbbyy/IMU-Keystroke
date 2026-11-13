@@ -365,6 +365,49 @@ def test_gyro_sign_estimate():
     assert np.allclose(r["sign"], true), r["errors"]
 
 
+def test_gyro_sign_few_large_rotations_among_many_small():
+    """axes 단계의 큰 회전 몇 번 + 타이핑의 작은 회전 다수(가속도 잡음에 묻힘).
+    작은 쌍이 다수여도 큰 회전 쌍이 부호를 정해야 한다(중앙값 점수는 여기서 애매해져 오판했다, S01 w3)."""
+    from ringko.align3d import compose_rotvecs, estimate_gyro_sign
+    from ringko.motion import rotvec_to_mat
+    fs = 200.0
+    rng = np.random.default_rng(7)
+    R = rotvec_to_mat(np.radians([5, -10, 15]))
+    T, A, W = [], [], []
+    tt = 0.0
+
+    def still(n):
+        nonlocal tt
+        g = R.T @ [0, 0, 9.80665] + rng.normal(0, 0.15, 3)            # 자세마다 다른 가속도 치우침(≈1°)
+        for _ in range(n):
+            T.append(tt); A.append(g + rng.normal(0, 0.01, 3)); W.append(np.zeros(3)); tt += 1 / fs
+
+    def move(wv, n):
+        nonlocal R, tt
+        for _ in range(n):
+            T.append(tt); A.append(R.T @ [0, 0, 9.80665]); W.append(wv.copy()); tt += 1 / fs
+            R = R @ rotvec_to_mat(wv / fs)
+
+    for k in range(4):                                                # axes: 큰 회전 4번(축 고르게)
+        still(60)
+        move(np.eye(3)[k % 3] * np.radians(150), 80)
+    for _ in range(60):                                               # 타이핑: 작은 회전 60번
+        still(60)
+        axis = rng.normal(size=3); axis /= np.linalg.norm(axis)
+        move(axis * np.radians(15), 16)
+    still(60)
+    T, A, W = np.array(T), np.array(A), np.array(W)
+    true = np.array([-1.0, -1.0, -1.0])
+    r = estimate_gyro_sign(T, A, W * true)
+    assert np.allclose(r["sign"], true), r["errors"]
+    assert r["ambiguous"] == [(-1, -1, -1)], r["errors"]
+    v = rng.normal(size=(5, 3)) * 0.1                                  # 벡터화 합성 = 순차 곱
+    Rl = np.eye(3)
+    for x in v:
+        Rl = Rl @ rotvec_to_mat(x)
+    assert np.allclose(compose_rotvecs(v), Rl)
+
+
 def test_lexicon_domain_vocab():
     from ringko.decode import domain_vocab
     assert domain_vocab([("한국", 0.5), ("학교", 0.1)], ["학교", "대학", "학교"]) == [("학교", 0.1), ("대학", 0.1)]

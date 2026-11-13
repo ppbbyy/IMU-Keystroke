@@ -21,7 +21,6 @@ import numpy as np
 
 from .consonant3d import Alignment, Scorer3D, chain_marginals
 from .keymap3d import KI
-from .motion import rotvec_to_mat
 
 
 # --------------------------------------------------------------------------- 자이로 부호
@@ -47,9 +46,43 @@ def _still_segments(t, acc, gyr_raw, win_s=0.1, gyro_dps=5.0, acc_ptp_g=0.02):
     return segs, still
 
 
-def estimate_gyro_sign(t, acc, gyr_raw, max_pairs: int = 150) -> dict:
-    """반환 {'sign': (3,), 'errors': {sign: 중앙 오차[deg]}, 'ambiguous': [후보 sign...]}.
-    gyr_raw: 부호 보정 전 자이로 [rad/s]."""
+_SIGNS = list(itertools.product([1, -1], repeat=3))
+
+
+def _qmul(a, b):
+    w1, x1, y1, z1 = np.moveaxis(a, -1, 0)
+    w2, x2, y2, z2 = np.moveaxis(b, -1, 0)
+    return np.stack([w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2, w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+                     w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2, w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2], -1)
+
+
+def compose_rotvecs(v: np.ndarray) -> np.ndarray:
+    """v (..., N, 3) 회전 벡터 → R_1 R_2 … R_N (..., 3, 3). 루프 `R = R @ rotvec_to_mat(v_i)`와 같은 순서(body 기준),
+    쿼터니언 쌍 곱을 log2(N)단계로 벡터화."""
+    th = np.linalg.norm(v, axis=-1, keepdims=True)
+    k = np.where(th > 1e-12, v / np.maximum(th, 1e-300), 0.0)
+    q = np.concatenate([np.cos(th / 2), np.sin(th / 2) * k], -1)
+    while q.shape[-2] > 1:
+        if q.shape[-2] % 2:
+            eye = np.zeros(q.shape[:-2] + (1, 4))
+            eye[..., 0] = 1.0
+            q = np.concatenate([q, eye], -2)
+        q = _qmul(q[..., 0::2, :], q[..., 1::2, :])
+    w, x, y, z = np.moveaxis(q[..., 0, :], -1, 0)
+    return np.stack([np.stack([1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)], -1),
+                     np.stack([2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)], -1),
+                     np.stack([2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)], -1)], -2)
+
+
+def estimate_gyro_sign(t, acc, gyr_raw, max_pairs: int = 2000, err_cap_deg: float = 30.0,
+                       amb_ratio: float = 1.3) -> dict:
+    """반환 {'sign': (3,), 'errors': {sign: 점수[deg]}, 'ambiguous': [후보 sign...]}.
+    gyr_raw: 부호 보정 전 자이로 [rad/s].
+
+    점수 = 쌍별 중력 예측 오차(최대 err_cap_deg로 자름)의 '자이로 회전량 가중 평균'.
+    중앙값을 쓰면 회전이 거의 없는 타이핑 쌍(어느 부호든 오차가 비슷함)이 다수라서 axes 단계처럼
+    크게 돌린 소수 쌍의 증거가 묻힌다(S01 w3: 정답 1.59° vs 오답 1.66°로 애매 → 오판). 회전량 가중이면
+    정보가 있는 쌍이 점수를 정하고, 상한은 정지 구간 오검출 같은 이상치 쌍의 영향을 막는다."""
     segs, still = _still_segments(t, acc, gyr_raw)
     bias = np.median(gyr_raw[still], axis=0) if still.any() else np.zeros(3)
     pairs = []
@@ -62,21 +95,22 @@ def estimate_gyro_sign(t, acc, gyr_raw, max_pairs: int = 150) -> dict:
                 pairs.append((a1 - 1, b0, ga, gb, ang))
     if len(pairs) > max_pairs:                     # 회전이 큰 쌍 위주로
         pairs = sorted(pairs, key=lambda p: -p[4])[:max_pairs]
-    errs = {}
-    for signs in itertools.product([1, -1], repeat=3):
-        s = np.array(signs, float)
-        e = []
-        for i0, i1, ga, gb, _ in pairs:
-            R = np.eye(3)
-            for i in range(i0, i1):
-                R = R @ rotvec_to_mat(s * (gyr_raw[i] - bias) * (t[i + 1] - t[i]))
-            e.append(np.degrees(np.arccos(np.clip((R.T @ ga) @ gb, -1, 1))))
-        errs[signs] = float(np.median(e)) if e else np.nan
     if not pairs:                                   # 판정 불가 → 호출 쪽 기본값(frames.GYRO_SIGN)
-        return {"sign": None, "errors": errs, "ambiguous": [], "n_pairs": 0}
+        return {"sign": None, "errors": {s: np.nan for s in _SIGNS}, "ambiguous": [], "n_pairs": 0}
+    S = np.array(_SIGNS, float)[:, None, :]
+    E = np.zeros((len(pairs), len(_SIGNS)))
+    rot = np.zeros(len(pairs))
+    for k, (i0, i1, ga, gb, _) in enumerate(pairs):
+        V = (gyr_raw[i0:i1] - bias) * np.diff(t[i0:i1 + 1])[:, None]
+        rot[k] = np.linalg.norm(V, axis=1).sum()
+        R = compose_rotvecs(S * V[None])                                   # (8, 3, 3)
+        E[k] = np.degrees(np.arccos(np.clip(np.einsum("sji,j,i->s", R, ga, gb), -1, 1)))
+    w = rot / max(rot.sum(), 1e-12)
+    score = (np.minimum(E, err_cap_deg) * w[:, None]).sum(0)
+    errs = {s: float(v) for s, v in zip(_SIGNS, score)}
     order = sorted(errs, key=lambda k: errs[k])
     best = order[0]
-    amb = [k for k in order if errs[k] <= 1.3 * errs[best] + 0.3]     # 중력으로 가르기 애매한 후보(상대 기준)
+    amb = [k for k in order if errs[k] <= amb_ratio * errs[best]]       # 중력으로 가르기 애매한 후보(상대 기준)
     return {"sign": np.array(best, float), "errors": errs, "ambiguous": amb, "n_pairs": len(pairs)}
 
 
@@ -102,14 +136,22 @@ def choose_gyro_sign(sd, phase: str = "continuous", strikes=None, source: str = 
         for s in r["ambiguous"][:4]:
             trs, _ = track_session(sd, strikes, phase, TrackParams(gyro_sign=np.array(s, float)), source=source)
             cl[s] = {w.trial_id: float(np.linalg.norm(w.closure)) for w in trs if w.has_return}
-        # 단어별 쌍비교: 후보마다 '그 부호에서 닫힘이 가장 작은 단어' 비율(중앙값 비교보다 단어 몇 개의 큰 오차에 덜 흔들림)
-        common = set.intersection(*[set(v) for v in cl.values()])
-        wins = {s: 0 for s in cl}
-        for tid in common:
-            wins[min(cl, key=lambda s: cl[s][tid])] += 1
-        r["closure_by_sign"] = {s: (float(np.median(list(v.values()))), wins[s] / max(len(common), 1)) for s, v in cl.items()}
-        r["sign"] = np.array(max(wins, key=lambda s: wins[s]), float)
-        r["by"] = "gravity+closure"
+        # 중력 1위(best)를 기본으로 두고, 다른 후보는 best와 '일대일'로만 겨룬다. 여러 후보 다수결은
+        # 닫힘에 거의 영향 없는 축(예: z 부호)끼리 표가 갈려 우연히 오답이 이길 수 있다(S01 w3: 40% 대 33%).
+        # 후보가 이기려면 단어별 쌍비교 승률 ≥ win_min 이고 닫힘 중앙값도 best보다 작아야 한다.
+        best = tuple(int(x) for x in r["sign"])
+        win_min = 0.6
+        r["closure_by_sign"] = {}
+        pick, pick_rate = best, 0.0
+        for s, v in cl.items():
+            common = set(v) & set(cl[best])
+            rate = (sum(v[tid] < cl[best][tid] for tid in common) / len(common)) if common and s != best else 0.5
+            med = float(np.median(list(v.values()))) if v else np.nan
+            r["closure_by_sign"][s] = (med, rate)
+            if s != best and rate >= win_min and med < np.median(list(cl[best].values())) and rate > pick_rate:
+                pick, pick_rate = s, rate
+        r["sign"] = np.array(pick, float)
+        r["by"] = "gravity+closure" if pick != best else "gravity(closure agrees)"
     return r
 
 
