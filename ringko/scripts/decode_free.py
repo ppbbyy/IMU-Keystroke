@@ -28,6 +28,20 @@
   --drop-truth         (검증용) 실제로 친 단어를 사전에서 빼고 추론 = '사전에 없는 단어를 쳤을 때' 재현.
                        --add-words 와 함께 쓰면 '사전에 없던 단어를 내 단어로 넣었을 때'가 된다
 """
+# ============================================================================
+# 새로운 사용자가 라벨 없이 단어를 입력하고 바로 후보를 보는 명령 (ringko 폴더에서 실행)
+#
+#   python scripts/record_free.py --subject NEW --wear 1 --decode
+#
+#   --subject NEW : 사용자 ID (저장 폴더 이름: data/free/NEW/…)
+#   --wear 1      : 착용 번호 (링을 새로 낄 때마다 1, 2, 3 …)
+#   --decode      : 녹화가 끝나면(Esc 두 번) 곧바로 scripts/decode_free.py 로 추론
+#                   → 단어마다 자음열 후보 3개 + 사전 단어 후보 3개 출력
+#   (선택) --add-words 내단어.txt : 사전에 없는 내 단어를 추가
+#
+# 이미 녹화한 세션만 다시 추론하려면:
+#   python scripts/decode_free.py data/free/NEW/<세션폴더>
+# ============================================================================
 import argparse
 import sys
 import warnings
