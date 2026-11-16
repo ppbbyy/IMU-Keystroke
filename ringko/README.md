@@ -73,6 +73,7 @@ IMU ─▶ 타격 검출 features.detect_presses [+ refine_presses]   ← 기존
 | `simulate.py` | 검증용 모의: 부착 방향 회전, 다른 IMU(축 규약·배율·바이어스·잡음·119Hz) |
 
 ```
+python scripts/word_top3.py <세션> [--causal 20 --flip -1 --csv out.csv]   # 입력한 단어가 Top-3 안에 있는지 단어별 O/X
 python scripts/eval3d.py data/raw/S01/*                       # IMU만(검출+보정), 세션마다 라벨 없이 정렬
 python scripts/eval3d.py data/raw/S01/* --strikes keylog      # 오라클 타격
 python scripts/eval3d.py data/raw/S01/* --causal 20           # 앞 20단어로만 정렬(실시간 흉내)
