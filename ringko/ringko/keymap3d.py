@@ -49,12 +49,16 @@ class Keyboard3D:
     margin: float = 2.0          # 허용 배수 m
     cap_mm: float = 14.5         # 키캡 윗면 폭 → 칸 안 타격 산포 σ_hit = cap/√12 (균등분포 표준편차)
     scale_sd: float = 0.1        # 타격마다 남는 배율 흔들림(대역 안 순위용 가우스 폭)
+    centers_u: tuple | None = None   # (14,2) 키 단위 타격 중심(F 기준). None = 물리 배열. profile.py가 여러 사람 데이터로 채움
+    hit_sd_mm: float | None = None   # 칸 안 타격 산포(축당 표준편차). None = cap_mm/√12
 
     def __post_init__(self):
         f = KEY_XY[HOME_KEY]
         p = self.pitch_mm
         # 칸 중심 (z는 칸 높이 범위의 가운데)
         self.C = np.array([[(KEY_XY[k][0] - f[0]) * p, -(KEY_XY[k][1] - f[1]) * p, -self.z_env_mm / 2] for k in KEYS])
+        if self.centers_u is not None:                                   # 실측 타격 중심(키 단위)으로 대체
+            self.C[:, :2] = np.asarray(self.centers_u, float).reshape(14, 2) * p
         self.C2 = self.C[:, :2]
         self.h = np.array([p / 2, p / 2, self.z_env_mm / 2])
         self.d = np.linalg.norm(self.C2, axis=1)                         # 수평 중심 거리
@@ -64,6 +68,8 @@ class Keyboard3D:
         # 두 칸 사이 거리 범위: 차이 벡터의 상자 반폭 = 2h (z는 같은 평면이므로 한 칸 높이만)
         self.pmin, self.pmax = _rect_min_max(V, np.array([p, p, self.z_env_mm / 2]))
         self.hit_var = self.cap_mm ** 2 / 12.0                           # 키캡 위 균등 타격 위치의 축당 분산
+        if self.hit_sd_mm is not None:
+            self.hit_var = float(self.hit_sd_mm) ** 2
 
     def band3d(self, z_ref, sigma) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """타격 평면 높이 z_ref(단어별 추정)에서의 3차원 F 거리 (d_k, d_min, d_max), 각 (n,14).

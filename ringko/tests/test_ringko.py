@@ -474,6 +474,46 @@ def test_free_recorder_and_open_vocab():
     assert not plausible_word(far)
 
 
+def test_population_profile():
+    """여러 사람의 라벨 세션 → 공용 프로파일: 실측 타격 중심의 체계적 어긋남과 센서 고유값(손잡이)을 뽑는다."""
+    from ringko.align3d import consonant_prior, moment_scale
+    from ringko.keymap3d import KEYS, KI, Keyboard3D
+    from ringko.profile import fit_profile, keyboard_from_profile, load_profile, save_profile, session_points
+    words = ["사람", "한국", "학교", "나라", "가게", "하늘", "바다", "어디", "다리", "기도", "도시", "하다", "택시",
+             "친구", "마음", "시간", "편지", "자동차", "커피", "방법", "퀴즈", "토마토", "추측", "평화"] * 3
+    mirror = np.diag([1.0, -1.0])
+    sess = []
+    for i, (subj, yaw, gain) in enumerate([("A", 80, 0.9), ("A", 100, 1.0), ("B", 20, 0.8), ("C", -30, 1.05)]):
+        th = np.radians(yaw)
+        R2 = np.array([[np.cos(th), -np.sin(th)], [np.sin(th), np.cos(th)]]) @ mirror
+        tr = _tracks_from_layout(words, R2, gain, noise=1.5, seed=i)
+        for t in tr:                                                  # 모든 사람이 ㅇ(d)를 오른쪽으로 0.3u 치우쳐 친다
+            for k, c in enumerate(t.truth):
+                if c == "d":
+                    t.P[k, :2] += R2 @ np.array([0.3 * 19 * gain, 0.0])
+        pt = session_points(tr)
+        assert pt["flip"] == -1.0 and abs(pt["scale"] - gain) < 0.05, (pt["flip"], pt["scale"])
+        sess.append({"subject": subj, "points": pt, "gyro_sign": (-1.0, -1.0, -1.0)})
+    prof = fit_profile(sess)
+    off = np.array(prof["centers_u"]) - Keyboard3D(pitch_mm=1.0).C2
+    assert prof["n_subjects"] == 3 and prof["flip"] == -1.0 and prof["gyro_sign"] == [-1.0, -1.0, -1.0]
+    assert abs(off[KI["d"], 0] - 0.3) < 0.08 and np.abs(np.delete(off, KI["d"], 0)).max() < 0.12, off.round(2)
+    assert np.allclose(np.array(fit_profile(sess, shrink=1.0)["centers_u"]), Keyboard3D(pitch_mm=1.0).C2, atol=1e-4)
+    with tempfile.TemporaryDirectory() as d:
+        save_profile(prof, Path(d) / "p.json")
+        kb = keyboard_from_profile(load_profile(Path(d) / "p.json"), 19.0)
+    assert abs(kb.C2[KI["d"], 0] - (-19 + 0.3 * 19)) < 1.6 and len(KEYS) == 14
+    assert np.allclose(keyboard_from_profile(None).C2, Keyboard3D().C2)
+    sess[0]["points"] = dict(sess[0]["points"], flip=1.0)             # 세션마다 다르면 센서 고유값을 기록하지 않는다
+    assert fit_profile(sess)["flip"] is None
+    # 잡음을 고려한 배율: 잡음이 커도 움직임 이득을 과대 추정하지 않는다
+    tr = _tracks_from_layout(words, np.eye(2), 0.9, noise=8.0, seed=9)
+    for t in tr:
+        t.sig[:] = 8.0
+    pri = consonant_prior([(w, 1.0) for w in words])
+    assert abs(moment_scale(tr, pri, noise=True) - 0.9) < 0.08 < moment_scale(tr, pri, noise=False) - 0.9
+
+
 def test_unwrap_and_gaps():
     u = Unwrapper()
     out = [u(t) for t in [(1 << 32) - 10, (1 << 32) - 2, 5, 100]]

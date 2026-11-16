@@ -210,24 +210,45 @@ def consonant_prior(vocab) -> np.ndarray:
     return c / c.sum()
 
 
-def moment_scale(tracks, prior: np.ndarray, kb=None, clip=(0.7, 1.4)) -> float:
-    """라벨 없는 배율: 관측 타격의 평균 수평 F 거리 / 사전 빈도로 본 기대 거리 Σ π_k d_k.
+def moment_scale(tracks, prior: np.ndarray, kb=None, clip=(0.6, 1.5), noise: bool = True) -> float:
+    """라벨 없는 배율 s: 관측 타격의 평균 수평 F 거리 = 사전 자음 빈도 π로 본 기대 거리가 되는 s.
+    noise=True: 기대 거리에 추적 잡음을 넣는다 — E|s·c_k + ε|, ε ~ N(0, σ²I), σ = 타격 σ의 중앙값.
+      잡음은 거리를 항상 늘리므로(특히 F 근처 키) 무시하면 s가 과대 추정된다. s에 대해 단조 증가라 이분법으로 푼다.
+    noise=False: 이전 방식 s = 평균 거리 / Σ π_k d_k.
     회전·거울에 불변이라 정렬보다 먼저 정할 수 있다(EM 안에서 배율까지 풀면 F 쪽으로 붕괴함 — S01 확인)."""
     from .keymap3d import Keyboard3D
     kb = kb or Keyboard3D()
-    r = np.concatenate([np.linalg.norm(t.P[:, :2], axis=1) for t in tracks if np.isfinite(t.P).all()])
-    return float(np.clip(r.mean() / (prior * kb.d).sum(), *clip))
+    ok = [t for t in tracks if np.isfinite(t.P).all()]
+    r = np.concatenate([np.linalg.norm(t.P[:, :2], axis=1) for t in ok])
+    if not noise:
+        return float(np.clip(r.mean() / (prior * kb.d).sum(), *clip))
+    sig = float(np.median(np.concatenate([t.sig for t in ok])))
+    eps = np.random.default_rng(0).normal(0, sig, (400, 1, 2))            # 고정 난수(재현 가능)
+
+    def expect(s):
+        return float((prior * np.linalg.norm(s * kb.C2[None] + eps, axis=-1).mean(0)).sum())
+
+    lo, hi = clip
+    if expect(lo) >= r.mean():
+        return float(lo)
+    if expect(hi) <= r.mean():
+        return float(hi)
+    for _ in range(30):
+        mid = 0.5 * (lo + hi)
+        lo, hi = (mid, hi) if expect(mid) < r.mean() else (lo, mid)
+    return float(0.5 * (lo + hi))
 
 
 def fit_alignment(tracks, scorer: Scorer3D | None = None, lm=None, gamma: float = 0.5, flips=(1.0, -1.0),
                   n_theta: int = 12, iters: int = 6, sigma_yaw_em: float = np.radians(20),
-                  scale: float | None = None, prior: np.ndarray | None = None, verbose: bool = False) -> Alignment:
+                  scale: float | None = None, prior: np.ndarray | None = None, verbose: bool = False,
+                  scale_noise: bool = False) -> Alignment:
     """라벨 없는 EM 정렬(yaw θ, 손잡이 flip). tracks: track3d.WordTrack 목록(같은 세션·같은 착용).
     scale: None이면 moment_scale(prior 필요; prior도 None이면 1.0 = '센서 이동 ≈ 손끝 이동' 물리 가정)."""
     scorer = scorer or Scorer3D()
     sc = Scorer3D(scorer.kb, "sector", scorer.w_abs, scorer.w_rel, scorer.w_dir)
     if scale is None:
-        scale = moment_scale(tracks, prior, scorer.kb) if prior is not None else 1.0
+        scale = moment_scale(tracks, prior, scorer.kb, noise=scale_noise) if prior is not None else 1.0
     best = None
     for flip in flips:
         for th0 in np.linspace(-np.pi, np.pi, n_theta, endpoint=False):

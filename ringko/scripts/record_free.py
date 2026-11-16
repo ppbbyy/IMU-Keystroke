@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """자유 입력 녹화: 제시 단어 없이 치고 싶은 단어를 친다. 추론은 scripts/decode_free.py (IMU만 사용).
 
+  python scripts/record_free.py --subject NEW --wear 1 --decode       # 새 사용자: 녹화하고 끝나면 바로 단어 후보 출력
   python scripts/record_free.py --subject S01 --wear 4                # 키 로그도 함께(나중에 채점 가능)
   python scripts/record_free.py --subject S01 --wear 4 --no-keylog    # IMU만 기록(키를 전혀 저장하지 않음)
-  python scripts/decode_free.py data/free/S01/<세션> --flip -1 [--add-words 내단어.txt]
+  python scripts/decode_free.py data/free/S01/<세션> [--add-words 내단어.txt]
 
 치는 법 (수집과 같은 규칙)
   1) 왼손 검지를 F 위에 두고 0.5초쯤 멈춘다.
@@ -112,6 +113,8 @@ def main():
     ap.add_argument("--subject", required=True)
     ap.add_argument("--wear", type=int, required=True)
     ap.add_argument("--no-keylog", action="store_true", help="키를 저장하지 않음(IMU만)")
+    ap.add_argument("--decode", action="store_true", help="녹화가 끝나면 바로 추론(decode_free.py)")
+    ap.add_argument("--add-words", help="--decode 때 사전에 넣을 내 단어 파일")
     ap.add_argument("--port")
     ap.add_argument("--out", default="data/free")
     ap.add_argument("--keyboard", default="")
@@ -138,7 +141,14 @@ def main():
         dev.stop()
         rec.close(end=datetime.now().astimezone().isoformat(), keyboard_source=source, device_stats=dev.stats())
     print("저장:", d)
-    print(f"추론: python scripts/decode_free.py {d} --flip -1")
+    cmd = [sys.executable, str(Path(__file__).resolve().parent / "decode_free.py"), str(d)]
+    if a.add_words:
+        cmd += ["--add-words", a.add_words]
+    if a.decode:
+        import subprocess
+        subprocess.run(cmd, check=False)
+    else:
+        print("추론: python scripts/decode_free.py", d)
 
 
 if __name__ == "__main__":

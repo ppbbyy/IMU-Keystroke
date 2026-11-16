@@ -71,9 +71,12 @@ IMU ─▶ 타격 검출 features.detect_presses [+ refine_presses]   ← 기존
 | `infer3d.py` | `infer_session`: 위 전체를 한 번에 |
 | `decode.py` | `Lexicon`, `ConsonantLM`(사전 텍스트로 만든 자음 트라이그램), `domain_vocab` |
 | `free.py` | 자유 입력: IMU만으로 단어 경계(`segment_words`), 가상 시도(`virtual_session`), 키 로그 → 친 단어(`typed_words`), 녹화(`FreeRecorder`) |
+| `profile.py` | 공용 프로파일: 센서 고유값(손잡이·자이로 부호) + 실측 타격 중심(`fit_profile`, `keyboard_from_profile`) |
 | `simulate.py` | 검증용 모의: 부착 방향 회전, 다른 IMU(축 규약·배율·바이어스·잡음·119Hz) |
 
 ```
+python scripts/fit_profile.py data/raw/*/* --loso                       # 여러 사람 데이터 → 공용 프로파일(+ 빠진 사람 시험)
+python scripts/record_free.py --subject NEW --wear 1 --decode           # 새 사용자: 녹화 후 바로 단어 후보(프로파일 자동 사용)
 python scripts/record_free.py --subject S01 --wear 4                    # 자유 입력 녹화(제시 단어 없음)
 python scripts/decode_free.py <세션> --flip -1 [--add-words 내단어.txt]  # IMU만으로 단어 경계→자음열·단어 후보(사전 밖 단어 포함)
 python scripts/word_top3.py <세션> [--causal 20 --flip -1 --csv out.csv]   # 입력한 단어가 Top-3 안에 있는지 단어별 O/X

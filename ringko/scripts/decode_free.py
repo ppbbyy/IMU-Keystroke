@@ -16,10 +16,13 @@
 옵션
   --k 3                Top-K
   --add-words FILE     내 단어 추가. 한 줄에 한 단어든 아무 글(메모·문서)이든 된다 — 한글 단어를 모두 뽑아 사전에 넣는다
-  --flip auto|-1|+1    센서 축 손잡이. 단어가 적은 녹화(< 60단어)는 auto가 틀릴 수 있으니 아는 값을 준다(이 링은 -1)
+  --profile FILE|none  공용 프로파일(scripts/fit_profile.py가 여러 사람 데이터로 만든 것). 기본: ringko/profiles/population.json 이
+                       있으면 그것. 센서 고유값(손잡이·자이로 부호)을 여기서 읽어 고정한다 → 새 사용자가 단어 20개쯤만 쳐도 정렬된다
+  --use-centers        프로파일의 '실측 타격 중심'도 쓴다(기본 끔: 빠진 사람 시험에서 향상이 세션 간 흔들림보다 작았음)
+  --flip auto|-1|+1    센서 축 손잡이를 직접 지정(프로파일보다 우선). 다른 종류의 센서면 auto (단어 60개 이상 권장)
   --still-dps 15 --min-still 0.4    단어 경계: 자이로가 이 값 아래로 이 시간[s] 이상 = F 위 정지
   --pitch 19.0         키 간격[mm]
-  --gyro auto|default  자이로 부호: 라벨 없이 추정(기본) | frames.GYRO_SIGN
+  --gyro auto|default  자이로 부호를 직접 지정(프로파일보다 우선): 라벨 없이 추정 | frames.GYRO_SIGN
   --csv FILE           결과 저장(utf-8-sig)
   --no-truth           키 로그가 있어도 채점하지 않음
   --drop-truth         (검증용) 실제로 친 단어를 사전에서 빼고 추론 = '사전에 없는 단어를 쳤을 때' 재현.
@@ -43,6 +46,8 @@ from ringko.hangul import KEY_CONSONANT, LEFT_KEYS, is_typable  # noqa: E402
 from ringko.hangul import to_consonant_keys as skeleton_keys  # noqa: E402
 from ringko.infer3d import Infer3DConfig, infer_session  # noqa: E402
 from ringko.keymap3d import Keyboard3D  # noqa: E402
+from ringko.profile import default_profile_path, keyboard_from_profile, load_profile  # noqa: E402
+from ringko.track3d import TrackParams  # noqa: E402
 
 warnings.filterwarnings("ignore")
 jamo = lambda ks: "".join(KEY_CONSONANT[k] for k in ks)  # noqa: E731
@@ -66,11 +71,13 @@ def main():
     ap.add_argument("session")
     ap.add_argument("--k", type=int, default=3)
     ap.add_argument("--add-words")
-    ap.add_argument("--flip", default="auto")
+    ap.add_argument("--flip", default=None)
+    ap.add_argument("--profile", default=None)
+    ap.add_argument("--use-centers", action="store_true")
     ap.add_argument("--still-dps", type=float, default=15.0)
     ap.add_argument("--min-still", type=float, default=0.4)
     ap.add_argument("--pitch", type=float, default=19.0)
-    ap.add_argument("--gyro", default="auto", choices=["auto", "default"])
+    ap.add_argument("--gyro", default=None, choices=["auto", "default"])
     ap.add_argument("--csv")
     ap.add_argument("--no-truth", action="store_true")
     ap.add_argument("--drop-truth", action="store_true")
@@ -92,9 +99,18 @@ def main():
     vocab += [(w, fl) for w in added]                                     # 내 단어: 빈도는 사전 중앙값
     lex, lm, prior = Lexicon(vocab), ConsonantLM(vocab), consonant_prior(vocab)
     v, seg = virtual_session(sd, t_range, still_dps=a.still_dps, min_still_s=a.min_still)
-    flips = (1.0, -1.0) if a.flip == "auto" else (float(a.flip),)
-    sc = Scorer3D(Keyboard3D(pitch_mm=a.pitch))
-    cfg = Infer3DConfig(strikes="imu+refine", top_words=a.k, scorer=sc, flips=flips, gyro_sign=a.gyro)
+    prof = None
+    ppath = default_profile_path() if a.profile is None else (None if a.profile == "none" else Path(a.profile))
+    if ppath is not None and Path(ppath).exists():
+        prof = load_profile(ppath)
+    flip = a.flip if a.flip is not None else (prof["flip"] if prof and prof.get("flip") else "auto")
+    flips = (1.0, -1.0) if flip == "auto" else (float(flip),)
+    gyro, tp = a.gyro or "auto", TrackParams()
+    if a.gyro is None and prof and prof.get("gyro_sign"):
+        gyro, tp = "default", TrackParams(gyro_sign=np.array(prof["gyro_sign"], float))
+    kb = keyboard_from_profile(prof, a.pitch) if (prof and a.use_centers) else Keyboard3D(pitch_mm=a.pitch)
+    sc = Scorer3D(kb)
+    cfg = Infer3DConfig(strikes="imu+refine", top_words=a.k, scorer=sc, flips=flips, gyro_sign=gyro, track=tp)
     ok = lambda t: plausible_word(t, a.pitch)  # noqa: E731
     res = infer_session(v, lex, lm, prior, cfg, align_filter=ok)
     n_all = len(res.words)
@@ -110,7 +126,10 @@ def main():
           f" → 단어로 볼 만한 것 {len(res.words)}개"
           f" · 정렬 yaw {np.degrees(al.theta):.0f}° 손잡이 {al.flip:+.0f} 배율 {al.scale:.2f}"
           + (f" · 실제 단어 {len(T)}개(채점용)" if len(T) else " · 정답 없음(채점 생략)"))
-    if len(res.words) < 60 and a.flip == "auto":
+    print("프로파일: " + (f"{Path(ppath).name} (사람 {prof['n_subjects']}명) → 손잡이 {'고정 %+.0f' % flips[0] if len(flips) == 1 else '자동'}"
+                       f" · 자이로 부호 {'고정' if gyro == 'default' else '자동'} · 키 중심 {'실측' if a.use_centers else '물리 배열'}"
+                       if prof else "없음(센서 고유값 자동 추정, 키 중심 = 물리 배열)"))
+    if len(res.words) < 60 and len(flips) > 1:
         print("주의: 단어가 60개 미만이면 손잡이 자동 추정이 틀릴 수 있습니다. 같은 링이면 --flip -1 처럼 고정하세요.")
     t0 = v.imu.host_ns.iloc[0] / 1e9
     rows = []
