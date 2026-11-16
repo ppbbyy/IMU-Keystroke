@@ -122,77 +122,6 @@ def test_winkeys_hook():
     assert got == [(True, "f"), (False, "f")], ev
 
 
-def _synthetic_move(D=(0.040, -0.020), T=0.5, fs=233.0, tilt_deg=3.0, yaw_deg=8.0, lift=0.02):
-    """세계 좌표 궤적(최소저크 수평 이동 + 들어올림 호 + 회전) -> body 비력/각속도."""
-    from ringko.motion import rotvec_to_mat
-    t = np.arange(0, 0.3 + T, 1 / fs)
-    s = np.clip((t - 0.3) / T, 0, 1)
-    mj = 10 * s ** 3 - 15 * s ** 4 + 6 * s ** 5
-    pos = np.stack([D[0] * mj, D[1] * mj, lift * np.sin(np.pi * s)], 1)
-    dt = 1 / fs
-    vel = np.gradient(pos, dt, axis=0)
-    accw = np.gradient(vel, dt, axis=0)
-    base = rotvec_to_mat(np.radians([20.0, -70.0, 10.0]))  # 착용 자세(임의)
-    Rs = [base @ rotvec_to_mat(np.radians([tilt_deg * m, 0.5 * tilt_deg * m, yaw_deg * m])) for m in mj]  # R_wb
-    f_b = np.array([R.T @ (a + [0, 0, 9.80665]) for R, a in zip(Rs, accw)])
-    w_b = []
-    for i in range(len(t)):
-        j = min(i, len(t) - 2)
-        dR = Rs[j].T @ Rs[j + 1]
-        th = np.arccos(np.clip((np.trace(dR) - 1) / 2, -1, 1))
-        vee = np.array([dR[2, 1] - dR[1, 2], dR[0, 2] - dR[2, 0], dR[1, 0] - dR[0, 1]])
-        w_b.append(vee * (th / (2 * np.sin(th)) if th > 1e-9 else 0.5) / dt)
-    return t, f_b, np.array(w_b), Rs[0], np.array([D[0], D[1], 0.0])
-
-
-def test_motion_integrate():
-    from ringko.motion import integrate
-    t, f, w, R0, D = _synthetic_move()
-    i0 = int(0.25 * 233)
-    g0 = f[:i0].mean(0)
-    res = integrate(t[i0:], f[i0:], w[i0:], g0, np.zeros(3), "horizontal")
-    d_true = R0.T @ D                       # 기준(body t0) 좌표의 실제 변위
-    gz = g0 / np.linalg.norm(g0)
-    h = lambda v: v - (v @ gz) * gz         # noqa: E731
-    err = np.linalg.norm(h(res["disp"]) - h(d_true)) * 1000
-    assert err < 1.5, f"수평 변위 오차 {err:.2f}mm"
-    # 자이로 부호를 틀리면(원시 그대로) 크게 틀려야 한다 -> 부호 보정이 실제로 중요함을 확인
-    bad = integrate(t[i0:], f[i0:], -w[i0:], g0, np.zeros(3), "horizontal")
-    assert np.linalg.norm(h(bad["disp"]) - h(d_true)) * 1000 > 5 * err
-
-
-def test_decoder():
-    from ringko.decode import KEYS, Geometry, Lexicon, chain_marginals
-    pos = np.array([[(KEY_XY[k][0] - KEY_XY["f"][0]) * 19, (KEY_XY[k][1] - KEY_XY["f"][1]) * 19] for k in KEYS])
-    geo = Geometry(pos)
-    geo.sigma = 4.0
-    rng = np.random.default_rng(0)
-    lex = Lexicon([(w, 1.0) for w in ["한국", "학교", "사람", "바다", "하늘", "시간", "친구", "택시"]])
-    for w in ["한국", "택시", "바다"]:
-        obs = geo.expected(to_consonant_keys(w)) + rng.normal(0, 2.0, (len(to_consonant_keys(w)), 2))
-        assert lex.rank_words(geo, obs)[0][1] == w
-        P = chain_marginals(geo, obs)
-        assert "".join(KEYS[i] for i in P.argmax(1)) == to_consonant_keys(w)
-    # fit은 스케일/기울기를 복원
-    obs_l = [geo.expected(s) @ np.array([[0.8, 0.1], [0.0, 0.7]]) for s in ["gsrr", "xt", "qe", "gfs"]]
-    g2 = Geometry(pos).fit(obs_l, ["gsrr", "xt", "qe", "gfs"])
-    assert np.allclose(g2.A, [[0.8, 0.1], [0.0, 0.7]], atol=1e-6) and g2.sigma < 1e-6
-
-
-def test_consonant_lm():
-    from ringko.decode import ConsonantLM, Geometry, chain_marginals
-    M = np.array([[(KEY_XY[k][0] - KEY_XY["f"][0]) * 19, (KEY_XY[k][1] - KEY_XY["f"][1]) * 19] for k in "qwertasdfgzxcv"])
-    geo = Geometry(M)
-    lm = ConsonantLM([("가나", 1), ("가다", 1), ("나라", 1)])
-    assert np.allclose(np.exp(lm.logp).sum(2), 1)
-    obs = np.diff(np.vstack([np.zeros(2), M[[3, 6]]]), axis=0) + 3.0
-    P0 = chain_marginals(geo, obs)
-    P1 = chain_marginals(geo, obs, None, lm, 1e-9)  # γ≈0 → 언어모델 없는 경우와 같아야
-    assert np.allclose(P0, P1, atol=1e-6)
-    P2 = chain_marginals(geo, obs, None, lm, 0.5)
-    assert np.allclose(P2.sum(1), 1) and P2[0].argmax() == 3
-
-
 def test_kalman_trend():
     from ringko.motion import kalman_trend
     rng = np.random.default_rng(0)
@@ -231,123 +160,6 @@ def test_typing_pace_fft():
     assert abs(typing_pace_fft(t, j) - 0.4) < 0.03
 
 
-def test_row_timing_inner():
-    from ringko.decode import (KEYS, Geometry, RowModel, TimingModel, inner_score, kbest_sequences, rerank_inner,
-                               right_counts)
-    rng = np.random.default_rng(2)
-    rows = {k: KEY_XY[k][1] for k in KEYS}
-    keys = rng.choice(KEYS, 600)
-    df = pd.DataFrame({"key": keys, "tilt_a": [rows[k] * 2.0 + rng.normal(0, 0.5) for k in keys],
-                       "tilt_b": rng.normal(0, 1, 600)})
-    rm = RowModel().fit(df.iloc[:400])
-    pred = rm.row_logpost(df.iloc[400:]).argmax(1)
-    assert np.mean(pred == df.iloc[400:].key.map(rows).to_numpy()) > 0.9
-    assert right_counts("한국") == [0, 1, 0, 1] and right_counts("과일") == [0, 2, 1]
-    M = np.array([[(KEY_XY[k][0] - KEY_XY["f"][0]) * 19, (KEY_XY[k][1] - KEY_XY["f"][1]) * 19] for k in KEYS])
-    geo = Geometry(M)
-    geo.sigma = 4.0
-    obs = geo.expected("gsrr") * 0.85                                         # 크기만 작아진 동작
-    assert abs(inner_score(geo, obs, "gsrr") - 1.0) < 1e-9 and inner_score(geo, obs, "qqqq") < 0.9
-    geo.sigma = 20.0                                                          # 동작이 작아도 후보에 들도록 넓게
-    cands = kbest_sequences(geo, obs, k=200)
-    assert len(cands) == 200 and len(cands[0][1]) == 4 and "gsrr" in [c for _, c in cands]
-    ranked, P = rerank_inner(geo, obs, cands, kappa=200.0, mix=0.0)
-    assert ranked[0][1] == "gsrr" and np.allclose(P.sum(1), 1)
-    # 타이밍: 거리·오른손 키 수에 선형인 간격을 복원
-    recs = []
-    for i, w in enumerate(["한국", "사람", "바다", "택시", "학교", "하늘"] * 5):
-        cs, nv = to_consonant_keys(w), right_counts(w)
-        d = np.linalg.norm(geo.expected(cs), axis=1)
-        for k in range(len(cs)):
-            recs.append({"trial_id": i, "key": cs[k], "idx": k, "nv": nv[k],
-                         "ikt": 0.2 + 0.004 * d[k] + 0.1 * (k == 0) + 0.15 * nv[k] + rng.normal(0, 0.01)})
-    tm = TimingModel(True).fit(geo, pd.DataFrame(recs))
-    assert np.allclose(tm.coef, [0.2, 0.004, 0.1, 0.15], atol=0.02), tm.coef
-
-
-def test_tail_return():
-    """단어 끝 F 복귀 정지 시간(꼬리)으로 자음열이 같은 '눈'/'누나'를 가른다."""
-    from ringko.decode import KEYS, Geometry, Lexicon, TimingModel, tail_right
-    from ringko.features import tail_settle
-    assert tail_right("눈") == 0 and tail_right("누나") == 1 and tail_right("과일") == 0
-    assert to_consonant_keys("눈") == to_consonant_keys("누나")
-    # tail_settle: 타격 뒤 0.4s 움직이다 멈춘 자이로 → 약 0.4s
-    t = np.arange(0, 3, 1 / 238)
-    gyr = np.zeros((len(t), 3))
-    ip = 100
-    gyr[ip:ip + int(0.4 * 238), 0] = np.radians(60)
-    assert abs(tail_settle(t, gyr, ip) - 0.4) < 0.02
-    # 꼬리 모델: 끝 자음 뒤 모음이 있으면 0.12s 늦게 멈추는 데이터로 학습
-    rng = np.random.default_rng(5)
-    M = np.array([[(KEY_XY[k][0] - KEY_XY["f"][0]) * 19, (KEY_XY[k][1] - KEY_XY["f"][1]) * 19] for k in KEYS])
-    geo = Geometry(M)
-    recs = []
-    for i, w in enumerate(["눈", "누나", "사람", "바다", "한국", "하늘", "가게", "강"] * 6):
-        cs = to_consonant_keys(w)
-        tail = 0.55 + 0.12 * (tail_right(w) > 0) + rng.normal(0, 0.03)
-        for k in range(len(cs)):
-            recs.append({"trial_id": i, "key": cs[k], "idx": k, "nv": 0, "ikt": 0.3, "tail": tail,
-                         "nvt": tail_right(w)})
-    tm = TimingModel(True).fit(geo, pd.DataFrame(recs))
-    assert tm.tail_coef is not None and abs(tm.tail_coef[2] - 0.12) < 0.03, tm.tail_coef
-    lex = Lexicon([("눈", 100.0), ("누나", 100.0)])
-    obs = geo.expected(to_consonant_keys("눈"))
-    ikt = np.array([0.3, 0.3])
-    top = lambda tail: lex.rank_words(geo, obs, timing=tm, ikt=ikt, tail=tail)[0][1]  # noqa: E731
-    assert top(0.55) == "눈" and top(0.68) == "누나"
-    # 꼬리 관측이 없으면 두 단어 점수가 같다
-    sc = lex.rank_words(geo, obs, timing=tm, ikt=ikt)
-    assert abs(sc[0][0] - sc[1][0]) < 1e-9
-
-
-def test_fdist_rotation_invariant():
-    """F 기준 3차원 거리 디코더: 학습 없이, 센서가 어떻게 돌아가 있어도 같은 답."""
-    from ringko.decode import KI, Lexicon
-    from ringko.fdist import FDistModel, key_xyz
-    from ringko.motion import rotvec_to_mat
-    P = key_xyz()
-    assert np.allclose(P[KI["f"], :2], 0) and abs(np.linalg.norm(P[KI["s"], :2]) - 38) < 1e-9
-    fd = FDistModel()
-    rng = np.random.default_rng(7)
-    lex = Lexicon([("사람", 50.0), ("바다", 50.0), ("한국", 50.0), ("학교", 50.0), ("나라", 50.0), ("가게", 50.0)])
-    for w in ["사람", "한국", "학교"]:
-        idx = [KI[c] for c in to_consonant_keys(w)]
-        pos = P[idx] * 1.1 + rng.normal(0, 2, (len(idx), 3))             # 배율 1.1 + 잡음
-        assert fd.candidates(pos)[np.arange(len(idx)), idx].all()          # 정답 키가 대역 후보 안
-        R = rotvec_to_mat(rng.normal(0, 1.5, 3))                            # 아무렇게나 낀 센서
-        a = fd.rank_words(lex, pos)
-        b = fd.rank_words(lex, pos @ R.T)
-        assert a[0][1] == w and b[0][1] == w and np.allclose([x for x, _ in a], [x for x, _ in b])
-        M = fd.marginals(pos @ R.T)
-        assert np.allclose(M.sum(1), 1) and np.allclose(M, fd.marginals(pos))
-
-
-def test_fdist_gravity_yaw():
-    """중력 + 세션 yaw: 정답 없이 손잡이·yaw를 찾고, 거리만으로는 못 가르는 d/g를 가른다."""
-    from ringko.decode import KI, Lexicon
-    from ringko.fdist import FDistModel, key_xyz
-    P = key_xyz()
-    rng = np.random.default_rng(11)
-    words = ["사람", "한국", "학교", "나라", "가게", "하늘", "바다", "어디", "다리", "기도", "도시", "하다"]
-    lex = Lexicon([(w, 50.0) for w in words])
-    yaw = np.radians(95.0)
-    Rz = np.array([[np.cos(yaw), -np.sin(yaw), 0], [np.sin(yaw), np.cos(yaw), 0], [0, 0, 1]])
-    mirror = np.diag([1.0, -1.0, 1.0])                                       # 센서 축 손잡이가 반대인 경우
-    pos_list = []
-    for w in words * 3:
-        idx = [KI[c] for c in to_consonant_keys(w)]
-        pos_list.append((P[idx] @ (Rz @ mirror).T) + rng.normal(0, 2, (len(idx), 3)))
-    fd = FDistModel().calibrate(pos_list, lex)
-    assert fd.flip == -1.0 and abs(np.degrees(np.angle(np.exp(1j * (fd.mu - yaw))))) < 10, (fd.flip, fd.mu)
-    for key in ("d", "g"):                                                   # 한 타격 단어에서도 d/g 구분
-        pos = (P[[KI[key]]] @ (Rz @ mirror).T)
-        M = fd.marginals(pos)
-        other = "g" if key == "d" else "d"
-        assert M[0, KI[key]] > M[0, KI[other]]
-        M0 = FDistModel().marginals(pos)                                     # 거리만: d와 g가 같은 확률
-        assert abs(M0[0, KI["d"]] - M0[0, KI["g"]]) < 1e-9
-
-
 def test_closure_zupt_principle():
     """refine_presses의 근거: 진짜 정지(타격) 시각에 속도 0을 넣으면 F 복귀 닫힘 오차가 줄고, 움직이는 중간에 넣으면 는다."""
     from ringko.features import _segment_disp
@@ -376,39 +188,228 @@ def test_closure_zupt_principle():
     assert closure(0.25) > closure(0.5) * 3            # 움직이는 중간(속도 최대)에 ZUPT → 크게 나빠짐
 
 
-def test_wear_calibration():
-    from ringko.decode import KEYS, Geometry, Lexicon
-    words = ["한국", "학교", "사람", "바다", "하늘", "시간", "친구", "택시", "나라", "가족", "도시", "마음"]
-    lex = Lexicon([(w, 1.0) for w in words])
-    geo = Geometry.from_layout()
-    geo.sigma = 4.0
-    th = np.radians(25)
-    T = np.array([[np.cos(th), np.sin(th)], [-np.sin(th), np.cos(th)]]) * 0.8
-    rng = np.random.default_rng(3)
-    obs = [geo.expected(to_consonant_keys(w)) @ T + np.array([3.0, -2.0]) * (np.arange(len(to_consonant_keys(w)))[:, None] == 0)
-           + rng.normal(0, 1.0, (len(to_consonant_keys(w)), 2)) for w in words]
-    g2 = geo.copy().fit(obs, [to_consonant_keys(w) for w in words])          # 보정 단어(정답 있음)
-    assert np.allclose(g2.A, T, atol=0.05) and np.allclose(g2.b, [3, -2], atol=1.5)
-    g3 = geo.copy()
-    g3.sigma = 15.0
-    g3.adapt(obs, lex, iters=6, ridge=1.0)                                     # 정답 없이
-    assert sum(lex.rank_words(g3, o)[0][1] == w for o, w in zip(obs, words)) >= 10
+# --------------------------------------------------------------------------- 3차원 자음 추론
+def _synthetic_word(keys="ds", mount=(20.0, -70.0, 10.0), fs=238.0, leg=0.35, dwell=0.08, tilt_deg=6.0, seed=0):
+    """F 정지 → 키들 → F 정지. 세계 좌표(x 오른쪽, y 위 행, z 위) 최소저크 이동 + 손가락 회전, 센서는 mount 회전으로 부착.
+    반환 t, 비력 f_b, 각속도 w_b(오른손), 타격 인덱스, 세계 타격 위치[m]."""
+    from ringko.keymap3d import KI, Keyboard3D
+    from ringko.motion import rotvec_to_mat
+    kb = Keyboard3D()
+    pts = [np.zeros(3)] + [np.r_[kb.C2[KI[k]] / 1000, -0.003] for k in keys] + [np.zeros(3)]
+    p_parts, m_parts = [], []
+    dt = 1 / fs
+    ips = []
+    for a, b in zip(pts[:-1], pts[1:]):
+        n = int(leg * fs)
+        s = np.arange(n) / n
+        mj = 10 * s ** 3 - 15 * s ** 4 + 6 * s ** 5
+        p_parts.append(a + np.outer(mj, b - a) + np.outer(np.sin(np.pi * s) ** 2, [0, 0, 0.012]))
+        m_parts.append(np.sin(np.pi * s))
+        p_parts.append(np.repeat(b[None], int(dwell * fs), 0))
+        m_parts.append(np.zeros(int(dwell * fs)))
+    pre = np.zeros((int(0.6 * fs), 3))
+    post = np.zeros((int(1.0 * fs), 3))
+    pos = np.vstack([pre] + p_parts + [post])
+    mot = np.concatenate([np.zeros(len(pre))] + m_parts + [np.zeros(len(post))])
+    t = np.arange(len(pos)) * dt
+    k0 = len(pre)
+    for k in range(len(keys)):
+        k0 += int(leg * fs)
+        ips.append(k0 + 2)
+        k0 += int(dwell * fs)
+    vel = np.gradient(pos, dt, axis=0)
+    accw = np.gradient(vel, dt, axis=0)
+    base = rotvec_to_mat(np.radians(mount))
+    Rs = [base @ rotvec_to_mat(np.radians([tilt_deg * m, 0.5 * tilt_deg * m, 0.3 * tilt_deg * m])) for m in mot]
+    f_b = np.array([R.T @ (a + [0, 0, 9.80665]) for R, a in zip(Rs, accw)])
+    w_b = []
+    for i in range(len(t)):
+        j = min(i, len(t) - 2)
+        dR = Rs[j].T @ Rs[j + 1]
+        th = np.arccos(np.clip((np.trace(dR) - 1) / 2, -1, 1))
+        vee = np.array([dR[2, 1] - dR[1, 2], dR[0, 2] - dR[2, 0], dR[1, 0] - dR[0, 1]])
+        w_b.append(vee * (th / (2 * np.sin(th)) if th > 1e-9 else 0.5) / dt)
+    rng = np.random.default_rng(seed)
+    f_b = f_b + rng.normal(0, 0.002, f_b.shape)
+    return t, f_b, np.array(w_b), ips, np.array(pts[1:-1])
+
+
+def test_track3d_mount_invariant():
+    """타격 사이 적분 + 타격 ZUPT + F 복귀 닫힘: 센서를 어떻게 붙여도 F 거리·타격 간 거리가 실제와 같다."""
+    from ringko.track3d import TrackParams, _finish, track_trial
+    for mount in [(20.0, -70.0, 10.0), (-110.0, 30.0, 60.0)]:
+        t, f, w, ips, true = _synthetic_word("dsr", mount)
+        ref = np.eye(3)[int(np.argmin(np.abs(f[:50].mean(0))))]
+        raw = track_trial(t, f, w, ips, 0.3, ref, TrackParams())
+        assert raw is not None and raw["has_ret"]
+        x = pd.Series({"trial_id": 1, "phase": "continuous", "target": "x"})
+        tr = _finish(raw, x, "dsr", TrackParams(), q=100.0)
+        r_true = np.linalg.norm(true[:, :2], axis=1) * 1000
+        r_est = np.linalg.norm(tr.P[:, :2], axis=1)
+        assert np.abs(r_est - r_true).max() < 2.0, (mount, r_est, r_true)
+        d_true = np.linalg.norm(np.diff(true[:, :2], axis=0), axis=1) * 1000
+        d_est = np.linalg.norm(np.diff(tr.P[:, :2], axis=0), axis=1)
+        assert np.abs(d_est - d_true).max() < 2.0
+        assert np.linalg.norm(tr.closure) < 5.0                         # 깨끗한 합성 데이터면 닫힘 오차도 작다
+
+
+def test_track3d_closure_weights():
+    """닫힘 오차는 구간 분산(∝T³)에 비례해 나뉘고, 평면 제약은 타격 높이를 맞추며, 닫힘은 정확히 0이 된다."""
+    from ringko.track3d import TrackParams, _correct
+    d = np.array([[10.0, 0, 3], [5.0, 2, -1], [-12.0, -1, 4]])           # 타격 2개 + 복귀
+    T = np.array([0.2, 0.4, 0.2])
+    dc, _ = _correct(d, T, True, TrackParams(plane=False), q=1.0)
+    assert np.allclose(dc.sum(0), 0, atol=1e-9)
+    c = dc - d
+    assert np.allclose(c[:, 0] / c[:, 0].sum(), (T ** 3 + 1e-4) / (T ** 3 + 1e-4).sum())
+    dl, _ = _correct(d, T, True, TrackParams(closure="linear", plane=False), q=1.0)
+    assert np.allclose((dl - d)[:, 0] / (dl - d)[:, 0].sum(), (T + 1e-4) / (T + 1e-4).sum())
+    dp, zr = _correct(d, T, True, TrackParams(plane=True, sigma_plane_mm=0.5), q=1000.0)
+    Pz = np.cumsum(dp[:, 2])[:2]
+    assert abs(Pz[0] - Pz[1]) < 1.0 and abs(dp[:, 2].sum()) < 1e-6
+
+
+def test_keymap_bands():
+    """F 기준 기준 거리·min/max: 물리 배열에서 나오고, 키 단위로 정규화하면 키보드 크기와 무관."""
+    from ringko.keymap3d import KI, Keyboard3D
+    kb = Keyboard3D(pitch_mm=19.0)
+    assert np.allclose(kb.C2[KI["f"]], 0) and abs(kb.d[KI["s"]] - 38.0) < 1e-9 and abs(kb.d[KI["d"]] - 19.0) < 1e-9
+    assert kb.C2[KI["r"]][1] > 0 and kb.C2[KI["c"]][1] < 0 and kb.C2[KI["g"]][0] > 0   # y = 위 행, x = 오른쪽
+    dk, lo, hi = kb.band3d([0.0], [5.0])
+    assert (lo <= dk).all() and (dk <= hi).all() and lo[0, KI["f"]] == 0
+    t1, t2 = Keyboard3D(pitch_mm=18.0).table(), Keyboard3D(pitch_mm=19.05).table()
+    assert len(t1) == 14 and np.allclose(t1["d_k[u]"], t2["d_k[u]"], atol=0.02)
+    lo2, hi2 = kb.pair_band(5.0)
+    assert np.allclose(lo2, lo2.T) and (lo2[np.arange(14), np.arange(14)] == 0).all()
+
+
+def _tracks_from_layout(words, R2, scale=1.0, noise=3.0, seed=0):
+    """정답 배열 위치를 중력 좌표계로 돌려(R2: 키보드→센서 수평 변환) 만든 합성 WordTrack."""
+    from ringko.keymap3d import KI, Keyboard3D
+    from ringko.track3d import WordTrack
+    kb = Keyboard3D()
+    rng = np.random.default_rng(seed)
+    out = []
+    for i, w in enumerate(words):
+        cs = to_consonant_keys(w)
+        K = np.c_[kb.C2[[KI[c] for c in cs]], np.full(len(cs), -4.0)]
+        P = np.c_[K[:, :2] @ R2.T, K[:, 2]] * scale + rng.normal(0, noise, K.shape)
+        D = np.diff(np.vstack([np.zeros(3), P]), axis=0)
+        n = len(cs)
+        out.append(WordTrack(i, "continuous", w, cs, np.arange(n), P, D, P, np.full(n, 6.0), np.full(n, 6.0),
+                             np.zeros(3), np.full(n + 1, 0.3), -4.0))
+    return out
+
+
+def test_consonant3d_and_alignment():
+    """라벨 없는 EM이 yaw·손잡이를 복원하고, 방향 항이 거리만으로는 못 가르는 ㅇ(d)/ㅎ(g)를 가른다."""
+    from ringko.align3d import consonant_prior, fit_alignment, fit_from_taps
+    from ringko.consonant3d import Alignment, Scorer3D, chain_marginals
+    from ringko.decode import ConsonantLM, Lexicon
+    from ringko.keymap3d import KEYS, KI
+    words = ["사람", "한국", "학교", "나라", "가게", "하늘", "바다", "어디", "다리", "기도", "도시", "하다", "택시",
+             "친구", "마음", "시간", "편지", "자동차", "커피", "방법"]
+    yaw = np.radians(95.0)
+    R2 = np.array([[np.cos(yaw), -np.sin(yaw)], [np.sin(yaw), np.cos(yaw)]]) @ np.diag([1.0, -1.0])   # 회전 + 거울
+    tracks = _tracks_from_layout(words * 2, R2, 0.95)
+    vocab = [(w, 10.0) for w in words]
+    sc = Scorer3D()
+    al = fit_alignment(tracks, sc, prior=consonant_prior(vocab))
+    assert al.flip == -1.0 and abs(np.degrees(np.angle(np.exp(1j * (al.theta - yaw))))) < 8, (al.flip, np.degrees(al.theta))
+    assert abs(al.scale - 0.95) < 0.15 and al.oriented
+    hit = sum(int((chain_marginals(sc.observe(tr, al)).argmax(1) == [KI[c] for c in tr.truth]).sum()) for tr in tracks)
+    assert hit / sum(tr.n for tr in tracks) > 0.85
+    lex = Lexicon(vocab)
+    assert sum(lex.rank_words(sc, sc.observe(tr, al))[0][1] == tr.target for tr in tracks) >= 0.9 * len(tracks)
+    # 거리만(shell, 정렬 없음): 회전에 완전 불변, d와 g는 F에서 같은 거리라 점수가 같다
+    shell = Scorer3D(mode="shell")
+    one = _tracks_from_layout(["오"], np.eye(2), noise=0.0)[0]      # ㅇ = d 한 타격
+    rot = _tracks_from_layout(["오"], R2, noise=0.0)[0]
+    Ma, Mb = chain_marginals(shell.observe(one, Alignment())), chain_marginals(shell.observe(rot, Alignment()))
+    assert np.allclose(Ma, Mb) and abs(Ma[0, KI["d"]] - Ma[0, KI["g"]]) < 1e-9
+    Mo = chain_marginals(sc.observe(rot, al))
+    assert Mo[0, KI["d"]] > 5 * Mo[0, KI["g"]]
+    # 탭 캘리브레이션(정답 키 몇 개)도 같은 정렬
+    taps = _tracks_from_layout(["호", "오", "고", "초"], R2, 0.95)
+    at = fit_from_taps(taps)
+    assert at.flip == -1.0 and abs(np.degrees(np.angle(np.exp(1j * (at.theta - yaw))))) < 8
+    # 자음 LM: 확률 정규화, γ→0 이면 LM 없는 경우와 같다
+    lm = ConsonantLM(vocab)
+    assert np.allclose(np.exp(lm.logp).sum(2), 1)
+    obs = sc.observe(tracks[0], al)
+    assert np.allclose(chain_marginals(obs), chain_marginals(obs, lm, 1e-9), atol=1e-6)
     assert len(KEYS) == 14
 
 
-def test_preprocess():
+def test_gyro_sign_estimate():
+    """정지 자세 사이 중력 방향 변화로 자이로 부호 규약을 라벨 없이 찾는다."""
+    from ringko.align3d import estimate_gyro_sign
+    from ringko.motion import rotvec_to_mat
+    fs = 200.0
+    rng = np.random.default_rng(3)
+    R = rotvec_to_mat(np.radians([10, 20, 30]))
+    T, A, W = [], [], []
+    tt = 0.0
+    for k in range(12):
+        n = int(0.5 * fs)
+        for _ in range(n):                                            # 정지
+            T.append(tt); A.append(R.T @ [0, 0, 9.80665]); W.append(np.zeros(3)); tt += 1 / fs
+        axis = rng.normal(size=3); axis /= np.linalg.norm(axis)
+        wv = axis * np.radians(60)                                    # body 각속도
+        for _ in range(int(0.4 * fs)):
+            T.append(tt); A.append(R.T @ [0, 0, 9.80665]); W.append(wv.copy()); tt += 1 / fs
+            R = R @ rotvec_to_mat(wv / fs)
+    T, A, W = np.array(T), np.array(A), np.array(W)
+    true = np.array([-1.0, 1.0, -1.0])
+    r = estimate_gyro_sign(T, A, W * true, max_pairs=40)              # 원시 = 물리 × 부호
+    assert np.allclose(r["sign"], true), r["errors"]
+
+
+def test_gyro_sign_few_large_rotations_among_many_small():
+    """axes 단계의 큰 회전 몇 번 + 타이핑의 작은 회전 다수(가속도 잡음에 묻힘).
+    작은 쌍이 다수여도 큰 회전 쌍이 부호를 정해야 한다(중앙값 점수는 여기서 애매해져 오판했다, S01 w3)."""
+    from ringko.align3d import compose_rotvecs, estimate_gyro_sign
+    from ringko.motion import rotvec_to_mat
+    fs = 200.0
+    rng = np.random.default_rng(7)
+    R = rotvec_to_mat(np.radians([5, -10, 15]))
+    T, A, W = [], [], []
+    tt = 0.0
+
+    def still(n):
+        nonlocal tt
+        g = R.T @ [0, 0, 9.80665] + rng.normal(0, 0.15, 3)            # 자세마다 다른 가속도 치우침(≈1°)
+        for _ in range(n):
+            T.append(tt); A.append(g + rng.normal(0, 0.01, 3)); W.append(np.zeros(3)); tt += 1 / fs
+
+    def move(wv, n):
+        nonlocal R, tt
+        for _ in range(n):
+            T.append(tt); A.append(R.T @ [0, 0, 9.80665]); W.append(wv.copy()); tt += 1 / fs
+            R = R @ rotvec_to_mat(wv / fs)
+
+    for k in range(4):                                                # axes: 큰 회전 4번(축 고르게)
+        still(60)
+        move(np.eye(3)[k % 3] * np.radians(150), 80)
+    for _ in range(60):                                               # 타이핑: 작은 회전 60번
+        still(60)
+        axis = rng.normal(size=3); axis /= np.linalg.norm(axis)
+        move(axis * np.radians(15), 16)
+    still(60)
+    T, A, W = np.array(T), np.array(A), np.array(W)
+    true = np.array([-1.0, -1.0, -1.0])
+    r = estimate_gyro_sign(T, A, W * true)
+    assert np.allclose(r["sign"], true), r["errors"]
+    assert r["ambiguous"] == [(-1, -1, -1)], r["errors"]
+    v = rng.normal(size=(5, 3)) * 0.1                                  # 벡터화 합성 = 순차 곱
+    Rl = np.eye(3)
+    for x in v:
+        Rl = Rl @ rotvec_to_mat(x)
+    assert np.allclose(compose_rotvecs(v), Rl)
+
+
+def test_lexicon_domain_vocab():
     from ringko.decode import domain_vocab
-    from ringko.preprocess import ChannelNormalizer, WindowClassifier, augment_windows
-    rng = np.random.default_rng(4)
-    W = rng.normal([1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 6], (40, 48, 6))
-    Z = ChannelNormalizer().fit(W).transform(W)
-    assert np.allclose(Z.mean((0, 1)), 0, atol=1e-9) and np.allclose(Z.std((0, 1)), 1, atol=1e-6)
-    y = np.repeat([0, 1], 20)
-    W[y == 1, 20:30, 0] += 5
-    Wa, ya = augment_windows(W, y, n_copies=2)
-    assert len(Wa) == 120 and (ya[:40] == y).all()
-    m = WindowClassifier("logreg", augment=True).fit(W, y)
-    assert (m.predict_proba(W).argmax(1) == y).mean() > 0.9
     assert domain_vocab([("한국", 0.5), ("학교", 0.1)], ["학교", "대학", "학교"]) == [("학교", 0.1), ("대학", 0.1)]
 
 
