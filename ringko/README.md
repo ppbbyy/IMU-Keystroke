@@ -70,9 +70,12 @@ IMU ─▶ 타격 검출 features.detect_presses [+ refine_presses]   ← 기존
 | `align3d.py` | `choose_gyro_sign`, `fit_alignment`(라벨 없음), `fit_from_taps`(탭 몇 번), `moment_scale` |
 | `infer3d.py` | `infer_session`: 위 전체를 한 번에 |
 | `decode.py` | `Lexicon`, `ConsonantLM`(사전 텍스트로 만든 자음 트라이그램), `domain_vocab` |
+| `free.py` | 자유 입력: IMU만으로 단어 경계(`segment_words`), 가상 시도(`virtual_session`), 키 로그 → 친 단어(`typed_words`), 녹화(`FreeRecorder`) |
 | `simulate.py` | 검증용 모의: 부착 방향 회전, 다른 IMU(축 규약·배율·바이어스·잡음·119Hz) |
 
 ```
+python scripts/record_free.py --subject S01 --wear 4                    # 자유 입력 녹화(제시 단어 없음)
+python scripts/decode_free.py <세션> --flip -1 [--add-words 내단어.txt]  # IMU만으로 단어 경계→자음열·단어 후보(사전 밖 단어 포함)
 python scripts/word_top3.py <세션> [--causal 20 --flip -1 --csv out.csv]   # 입력한 단어가 Top-3 안에 있는지 단어별 O/X
 python scripts/eval3d.py data/raw/S01/*                       # IMU만(검출+보정), 세션마다 라벨 없이 정렬
 python scripts/eval3d.py data/raw/S01/* --strikes keylog      # 오라클 타격

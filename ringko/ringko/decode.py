@@ -55,6 +55,31 @@ def domain_vocab(vocab, domain_words, floor: float | None = None):
     return out
 
 
+def open_vocab(top_n: int = 30000, extra_words=(), max_keys: int = 12, path=None):
+    """열린 어휘 [(단어, 상대빈도)]: wordfreq 한국어 목록(최대 약 3만)에서 입력 가능한 단어 전부(길이 제한 없이 자음 1~max_keys개)
+    + extra_words(사용자 단어, 문서에서 뽑은 단어). 추가 단어의 빈도는 목록 중앙값(이미 있으면 그대로).
+    가정: 쌍자음(ㄲㄸㅃㅆㅉ)·ㅒ·ㅖ가 든 단어는 대상에서 제외한다(Shift가 필요 — 수집 규칙과 같음). 그런 추가 단어는 건너뛴다."""
+    from .hangul import is_typable
+    from .plan import load_vocab
+    seen, out = set(), []
+    for w, f in load_vocab(path, top_n):
+        if w not in seen and is_typable(w) and 1 <= len(to_consonant_keys(w)) <= max_keys:
+            seen.add(w)
+            out.append((w, f))
+    fl = float(np.median([f for _, f in out])) if out else 1.0
+    for w in extra_words:
+        if w not in seen and is_typable(w) and 1 <= len(to_consonant_keys(w)) <= max_keys:
+            seen.add(w)
+            out.append((w, fl))
+    return out
+
+
+def words_from_text(text: str) -> list[str]:
+    """아무 글(메모, 문서)에서 한글 단어를 뽑는다(등장 순, 중복 제거) — 사전에 없는 내 단어를 넣는 가장 쉬운 방법."""
+    import re
+    return list(dict.fromkeys(re.findall(r"[가-힣]+", text)))
+
+
 class Lexicon:
     def __init__(self, vocab):
         self.freq = dict(vocab)

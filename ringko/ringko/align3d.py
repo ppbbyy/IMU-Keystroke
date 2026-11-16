@@ -129,6 +129,21 @@ def choose_gyro_sign(sd, phase: str = "continuous", strikes=None, source: str = 
         r.update(sign=GYRO_SIGN.copy(), by="default")
         return r
     r["by"] = "gravity"
+    # 중력과 거의 나란한 축 둘레의 회전은 중력 방향을 바꾸지 않으므로, 그 축의 부호는 중력 시험으로 정할 수 없다
+    # (오차 차이가 커 보여도 잡음일 뿐 — S01 w1a 연속 타이핑 구간만 볼 때 x 부호를 틀리게 확정했음).
+    # 여러 방향으로 돌린 'axes' 구간이 없으면(정지 자세들의 중력 방향이 한쪽에 몰려 있으면) 그 축의 부호를 뒤집은
+    # 후보를 항상 닫힘 비교에 올린다.
+    segs, still = _still_segments(t, acc, gyr)
+    if still.any():
+        gd = acc[still] / np.linalg.norm(acc[still], axis=1, keepdims=True)
+        gm = gd.mean(0)
+        ax = int(np.argmax(np.abs(gm)))
+        if abs(gm[ax]) > 0.8 and np.mean(np.abs(gd[:, ax]) < 0.5) < 0.02:
+            alt = list(int(x) for x in r["sign"])
+            alt[ax] = -alt[ax]
+            if tuple(alt) not in [tuple(a) for a in r["ambiguous"]]:
+                r["ambiguous"] = list(r["ambiguous"]) + [tuple(alt)]
+                r["gravity_axis_unobservable"] = ax
     if len(r["ambiguous"]) > 1:
         if strikes is None:
             strikes, source = strikes_from_keylog(sd, phase), "keylog"

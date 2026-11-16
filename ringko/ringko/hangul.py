@@ -92,3 +92,61 @@ def to_consonant_keys(word: str) -> str:
 def to_consonants(word: str) -> str:
     """자음 자모열. 한국 -> 'ㅎㄴㄱㄱ'."""
     return "".join(j for j in _check(word) if j in CONSONANT_KEY)
+
+
+# --------------------------------------------------------------------------- 키열 -> 한글 (두벌식 오토마타)
+_KEY_VOWEL = {k: v for v, k in VOWEL_KEYS.items() if len(k) == 1}
+_COMPOUND = {_KEY_VOWEL[k[0]] + _KEY_VOWEL[k[1]]: v for v, k in VOWEL_KEYS.items() if len(k) == 2}
+_CLUSTER_OF = {pair: c for c, pair in CLUSTERS.items()}
+
+
+def _syll(cho: str, jung: str, jong: str = "") -> str:
+    return chr(0xAC00 + (_CHO.index(cho) * 21 + _JUNG.index(jung)) * 28 + _JONG.index(jong))
+
+
+def compose(keys: str) -> str:
+    """두벌식 키열(영문 소문자, Shift 없음) -> 한글. to_keys의 역: compose(to_keys(w)) == w.
+    키 로그만 있는 자유 입력에서 '실제로 친 단어'를 복원하는 데 쓴다. 조합되지 않는 자모는 낱자로 둔다."""
+    out: list[str] = []
+    cho = jung = jong = ""
+
+    def flush():
+        nonlocal cho, jung, jong
+        if cho and jung:
+            out.append(_syll(cho, jung, jong))
+        else:
+            out.append(cho + jung + jong)
+        cho = jung = jong = ""
+
+    for k in keys:
+        if k in KEY_CONSONANT:
+            c = KEY_CONSONANT[k]
+            if not cho and not jung:
+                cho = c
+            elif cho and jung and not jong:
+                jong = c
+            elif jong and (jong, c) in _CLUSTER_OF:
+                jong = _CLUSTER_OF[(jong, c)]
+            else:
+                flush()
+                cho = c
+        elif k in _KEY_VOWEL:
+            v = _KEY_VOWEL[k]
+            if jong:                                   # 받침이 다음 음절 초성으로 넘어감
+                a, b = CLUSTERS.get(jong, ("", jong))
+                jong = a
+                flush()
+                cho, jung = b, v
+            elif jung and jung + v in _COMPOUND:
+                jung = _COMPOUND[jung + v]
+            elif jung:
+                flush()
+                jung = v
+            else:
+                jung = v
+        else:
+            flush()
+            out.append(k)
+    flush()
+    return "".join(out)
+

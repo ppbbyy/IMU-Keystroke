@@ -207,6 +207,26 @@ def chain_marginals(obs: Obs3D, lm=None, gamma: float = 0.5, return_logz: bool =
     return (P, logz) if return_logz else P
 
 
+def kbest_strings(obs: Obs3D, lm=None, gamma: float = 0.5, k: int = 5, beam: int = 200):
+    """사전 없이 가장 그럴듯한 자음 키열 k개 [(log 점수, 'gsrr'), …] — 빔 탐색.
+    사전에 없는 단어도 '자음열'로는 항상 후보에 나올 수 있게 하는 열린 어휘 출력."""
+    U, Pr = obs.U, obs.Pair
+    cand = [(0.0, 0, 0, ())]                       # (점수, 이전이전 상태, 이전 상태, 경로) 상태 0 = 단어 시작
+    for t_ in range(obs.n):
+        nxt = []
+        for sc, a, b, path in cand:
+            add = U[t_].copy()
+            if t_ > 0:
+                add = add + Pr[t_][b - 1]
+            if lm is not None and gamma:
+                add = add + gamma * lm.logp[a, b]
+            for c in range(14):
+                nxt.append((sc + float(add[c]), b, c + 1, path + (c,)))
+        nxt.sort(key=lambda z: -z[0])
+        cand = nxt[:beam]
+    return [(sc, "".join(KEYS[i] for i in path)) for sc, _, _, path in cand[:k]]
+
+
 def candidate_strings(scorer: Scorer3D, track, al: Alignment, top: int = 3, lm=None, gamma: float = 0.5):
     """사람이 보기 위한 타격별 상위 후보 [('ㄱ', 확률), …] 목록."""
     from .hangul import KEY_CONSONANT
@@ -214,4 +234,4 @@ def candidate_strings(scorer: Scorer3D, track, al: Alignment, top: int = 3, lm=N
     return [[(KEY_CONSONANT[KEYS[i]], float(M[k, i])) for i in np.argsort(-M[k])[:top]] for k in range(len(M))]
 
 
-__all__ = ["Alignment", "Obs3D", "Scorer3D", "chain_marginals", "candidate_strings", "KEYS", "KI"]
+__all__ = ["Alignment", "Obs3D", "Scorer3D", "chain_marginals", "kbest_strings", "candidate_strings", "KEYS", "KI"]

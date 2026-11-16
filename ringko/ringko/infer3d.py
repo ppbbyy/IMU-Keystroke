@@ -66,7 +66,8 @@ def get_strikes(sd, how: str):
 
 
 def infer_session(sd, lexicon=None, lm=None, prior=None, cfg: Infer3DConfig | None = None,
-                  alignment: Alignment | None = None, taps: list | None = None, strikes=None) -> Result3D:
+                  alignment: Alignment | None = None, taps: list | None = None, strikes=None,
+                  align_filter=None) -> Result3D:
     """lexicon: decode.Lexicon(없으면 단어 순위 생략), lm: decode.ConsonantLM, prior: align3d.consonant_prior.
     alignment를 주면 그대로 쓴다(예: 같은 착용의 이전 세션에서 구한 것). taps: 탭 캘리브레이션용 WordTrack 목록."""
     cfg = cfg or Infer3DConfig()
@@ -84,7 +85,9 @@ def infer_session(sd, lexicon=None, lm=None, prior=None, cfg: Infer3DConfig | No
     if alignment is not None:
         al = alignment
     elif cfg.alignment == "em":
-        al = fit_alignment(tracks, sc, lm=lm, gamma=cfg.gamma, flips=cfg.flips, prior=prior)
+        # align_filter(track) -> bool: 정렬 추정에 쓸 단어만 고른다(자유 입력에서 단어가 아닌 움직임 제외)
+        use = [t for t in tracks if align_filter(t)] if align_filter is not None else tracks
+        al = fit_alignment(use or tracks, sc, lm=lm, gamma=cfg.gamma, flips=cfg.flips, prior=prior)
     elif cfg.alignment == "taps":
         al = fit_from_taps(taps or [], flips=cfg.flips)
     else:

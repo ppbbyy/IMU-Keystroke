@@ -413,6 +413,67 @@ def test_lexicon_domain_vocab():
     assert domain_vocab([("한국", 0.5), ("학교", 0.1)], ["학교", "대학", "학교"]) == [("학교", 0.1), ("대학", 0.1)]
 
 
+# --------------------------------------------------------------------------- 자유 입력
+def test_compose_roundtrip():
+    """키열 -> 한글 조합이 to_keys의 역(받침 넘김, 겹받침, 복합모음 포함)."""
+    from ringko.hangul import compose, to_keys
+    for w in ["한국", "값", "닭고기", "각오", "갈비", "과일", "의외", "읽어", "없음", "후폭풍", "만년필"]:
+        assert compose(to_keys(w)) == w, (w, compose(to_keys(w)))
+    assert compose("rkrh") == "가고" and compose("r") == "ㄱ"
+
+
+def test_free_segmentation():
+    """F 위 정지 사이의 움직임 = 단어 후보. 가상 시도로 바꾸면 기존 파이프라인 형식이 된다."""
+    from ringko.free import match_truth, segment_words, typed_words
+    fs = 200.0
+    t = np.arange(0, 12, 1 / fs)
+    g = np.zeros((len(t), 3)) + 2.0                       # 정지(2dps)
+    for a_, b_ in [(1.0, 2.5), (4.0, 5.2), (7.0, 7.05), (9.0, 10.5)]:   # 세 번째는 너무 짧은 움찔
+        g[(t >= a_) & (t < b_), 0] = 80.0
+    g[(t >= 9.5) & (t < 9.7), 0] = 3.0                    # 단어 중간의 짧은 멈춤(0.2s < 0.4s) → 쪼개지지 않아야
+    seg = segment_words(t, g)
+    assert len(seg) == 3 and np.allclose(seg.start, [1.0, 4.0, 9.0], atol=0.02) and np.allclose(seg.end, [2.5, 5.2, 10.5], atol=0.02)
+    assert (seg.cue < seg.start).all()
+    seg.insert(0, "trial_id", [1, 2, 3])
+    ns = lambda x: int(x * 1e9)  # noqa: E731
+    ev = [(1.2, "g"), (1.5, "k"), (1.8, "s"), (2.6, "space"), (4.2, "r"), (4.5, "n"), (4.8, "r"), (5.3, "space")]
+    keys = pd.DataFrame({"host_ns": [ns(x) for x, _ in ev], "event": "down", "key": [k for _, k in ev], "trial_id": 0})
+    tw = typed_words(keys)
+    assert list(tw.word) == ["한", "국"] and list(tw.n_left) == [2, 2] and tw.ok.all()
+    m = match_truth(seg, tw)
+    assert list(m.word) == ["한", "국", ""] and list(m.attrs["truth"].seg_id) == [1, 2]
+
+
+def test_free_recorder_and_open_vocab():
+    from ringko.consonant3d import Alignment, Scorer3D, kbest_strings
+    from ringko.decode import Lexicon, open_vocab, words_from_text
+    from ringko.free import FreeRecorder, plausible_word
+    with tempfile.TemporaryDirectory() as d:
+        rec = FreeRecorder(d, {"subject": "T"})
+        for i, k in enumerate(list("gksrnr") + [" "]):
+            rec.on_key(True, k, 1000 + i)
+            rec.on_key(False, k, 1005 + i)
+        rec.close()
+        assert rec.words == ["한국"]
+        kd = pd.read_csv(Path(d) / "keys.csv", keep_default_na=False)
+        assert len(kd) == 14 and list(pd.read_csv(Path(d) / "trials.csv").columns)[0] == "trial_id"
+        assert json.loads((Path(d) / "meta.json").read_text(encoding="utf-8"))["phases"] == ["free"]
+    # 열린 어휘: 내 단어 추가(쌍자음·ㅒ·ㅖ 단어는 제외 가정)
+    extra = words_from_text("독수리 타법으로 챗봇에게, 떡볶이 얘기!")
+    assert extra == ["독수리", "타법으로", "챗봇에게", "떡볶이", "얘기"]
+    v = dict(open_vocab(extra_words=extra))
+    assert "타법으로" in v and "챗봇에게" in v and "떡볶이" not in v and "얘기" not in v
+    # 자음열 후보: 사전에 없어도 자음열로는 나온다
+    tr = _tracks_from_layout(["타법"], np.eye(2), noise=1.0)[0]
+    sc, al = Scorer3D(), Alignment(0.0, 1.0, 1.0, np.radians(8))
+    obs = sc.observe(tr, al)
+    assert kbest_strings(obs, k=3)[0][1] == to_consonant_keys("타법")
+    assert Lexicon([("한국", 1.0)]).rank_words(sc, obs) == []          # 사전에는 길이 3 자음열이 없음
+    assert plausible_word(tr)
+    far = _tracks_from_layout(["타법"], np.eye(2), scale=5.0, noise=0.0)[0]
+    assert not plausible_word(far)
+
+
 def test_unwrap_and_gaps():
     u = Unwrapper()
     out = [u(t) for t in [(1 << 32) - 10, (1 << 32) - 2, 5, 100]]
