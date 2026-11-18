@@ -80,6 +80,28 @@ def words_from_text(text: str) -> list[str]:
     return list(dict.fromkeys(re.findall(r"[가-힣]+", text)))
 
 
+def load_wordlist(path) -> list[str]:
+    """단어 목록 파일 → 한글 단어 리스트(등장 순, 중복 제거).
+      .csv : 열 '단어'(없으면 첫 열)만 읽는다. 다른 열(자음열·카테고리 등)은 무시.
+      그 외 : 텍스트로 보고 '#'로 시작하는 줄을 뺀 뒤 한글 단어를 모두 추출(words_from_text)."""
+    from pathlib import Path
+    p = Path(path)
+    if p.suffix.lower() == ".csv":
+        import csv
+        with open(p, encoding="utf-8-sig", newline="") as fh:
+            rd = csv.reader(fh)
+            header = next(rd, [])
+            col = header.index("단어") if "단어" in header else 0
+            if "단어" not in header and header:          # 머리글이 없으면 첫 줄도 단어
+                rows = [header] + list(rd)
+            else:
+                rows = list(rd)
+            words = [r[col].strip() for r in rows if len(r) > col and r[col].strip()]
+        return list(dict.fromkeys(w for w in words if any(0xAC00 <= ord(c) <= 0xD7A3 for c in w)))
+    text = "\n".join(ln for ln in p.read_text(encoding="utf-8").splitlines() if not ln.lstrip().startswith("#"))
+    return words_from_text(text)
+
+
 class Lexicon:
     def __init__(self, vocab):
         self.freq = dict(vocab)

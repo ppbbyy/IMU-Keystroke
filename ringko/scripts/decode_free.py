@@ -15,7 +15,7 @@
 
 옵션
   --k 3                Top-K
-  --add-words FILE     내 단어 추가. 한 줄에 한 단어든 아무 글(메모·문서)이든 된다 — 한글 단어를 모두 뽑아 사전에 넣는다
+  --add-words FILE     내 단어/사전 추가(.txt 또는 .csv). .csv는 '단어' 열만 읽는다. 쌍자음·ㅒ·ㅖ 단어는 자동 제외
   --profile FILE|none  공용 프로파일(scripts/fit_profile.py가 여러 사람 데이터로 만든 것). 기본: ringko/profiles/population.json 이
                        있으면 그것. 센서 고유값(손잡이·자이로 부호)을 여기서 읽어 고정한다 → 새 사용자가 단어 20개쯤만 쳐도 정렬된다
   --use-centers        프로파일의 '실측 타격 중심'도 쓴다(기본 끔: 빠진 사람 시험에서 향상이 세션 간 흔들림보다 작았음)
@@ -37,7 +37,7 @@
 #   --wear 1      : 착용 번호 (링을 새로 낄 때마다 1, 2, 3 …)
 #   --decode      : 녹화가 끝나면(Esc 두 번) 곧바로 scripts/decode_free.py 로 추론
 #                   → 단어마다 자음열 후보 3개 + 사전 단어 후보 3개 출력
-#   (선택) --add-words 내단어.txt : 사전에 없는 내 단어를 추가
+#   (선택) --add-words 목록.txt|.csv : 사전에 없는 내 단어/사전을 추가(.csv는 '단어' 열을 읽음)
 #
 # 이미 녹화한 세션만 다시 추론하려면:
 #   python scripts/decode_free.py data/free/NEW/<세션폴더>
@@ -54,7 +54,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from ringko.align3d import consonant_prior  # noqa: E402
 from ringko.consonant3d import Scorer3D, kbest_strings  # noqa: E402
 from ringko.dataset import load_session  # noqa: E402
-from ringko.decode import ConsonantLM, Lexicon, open_vocab, words_from_text  # noqa: E402
+from ringko.decode import ConsonantLM, Lexicon, load_wordlist, open_vocab  # noqa: E402
 from ringko.free import match_truth, plausible_word, typed_words, virtual_session  # noqa: E402
 from ringko.hangul import KEY_CONSONANT, LEFT_KEYS, is_typable  # noqa: E402
 from ringko.hangul import to_consonant_keys as skeleton_keys  # noqa: E402
@@ -103,7 +103,7 @@ def main():
     truth, t_range = (collected_truth(sd) if collected else (typed_words(sd.keys), None))
     if a.no_truth:
         truth = truth.iloc[:0]
-    extra = words_from_text(Path(a.add_words).read_text(encoding="utf-8")) if a.add_words else []
+    extra = load_wordlist(a.add_words) if a.add_words else []
     drop = set(truth.word) if a.drop_truth else set()
     vocab = [(w, f) for w, f in open_vocab() if w not in drop]            # --drop-truth: 친 단어를 사전에서 뺌(사전 밖 재현)
     have = {w for w, _ in vocab}
@@ -152,20 +152,28 @@ def main():
         obs = sc.observe(tr, al)
         sk = [s for _, s in kbest_strings(obs, lm, cfg.gamma, a.k)]
         wd = [w for _, w in wr.words]
-        true = seg_word.get(tr.trial_id, "")
+        raw = seg_word.get(tr.trial_id, "")
+        # 키 로그로 복원한 단어가 완성된 한글이 아니면(예: '피망ㅇ' — 오타·덜 친 글자) 정답으로 쓸 수 없다 → 채점 제외
+        true = raw if raw and is_typable(raw) else ""
         r = {"id": tr.trial_id, "t_s": round(float(tr.t_strike[0] - t0), 2), "n_strikes": tr.n,
              "skeletons": " ".join(jamo(s) for s in sk), "words": " ".join(wd), "truth": true,
+             "typed_raw": raw, "excluded": int(bool(raw) and not true),
              "truth_skeleton": jamo(skeleton_keys(true)) if true else "",
              "word_hit": int(true in wd) if true else "", "skeleton_hit": int(skeleton_keys(true) in sk) if true else "",
              "in_vocab": int(true in lex.freq) if true else ""}
         rows.append(r)
         if not a.quiet:
-            mark = ("O" if r["word_hit"] else "X") if true else " "
+            mark = ("O" if r["word_hit"] else "X") if true else ("-" if raw else " ")
             print(f"  {mark} {r['t_s']:7.1f}s {tr.n}타 | 자음열 {r['skeletons']:　<16s} | 단어 {r['words']:　<14s}"
-                  + (f" | 정답 {true} ({r['truth_skeleton']})" if true else ""))
+                  + (f" | 정답 {true} ({r['truth_skeleton']})" if true else
+                     f" | 채점 제외: 친 키가 완성된 단어가 아님 ({raw})" if raw else ""))
     df = pd.DataFrame(rows)
     if len(T) and len(df):
         by_truth = {r["truth"]: r for r in rows if r["truth"]}
+        bad = T[~T.word.map(is_typable)]
+        T = T[T.word.map(is_typable)]
+        if len(bad):
+            print(f"\n채점 제외 {len(bad)}개 (친 키가 완성된 단어가 아님 — 오타·백스페이스·쌍자음 등): " + " ".join(bad.word))
         why = []
         for x in T.itertuples():
             r = by_truth.get(x.word) if x.seg_id >= 0 else None
@@ -181,14 +189,14 @@ def main():
                 why.append("사전 밖")
             else:
                 why.append("순위 밖")
-        n = len(T)
+        n = max(len(T), 1)
         w_hit = why.count("hit")
         s_hit = sum(int(r["skeleton_hit"]) for r in by_truth.values())
         print(f"\n▶ 실제 단어 {n}개 기준  단어 Top-{a.k} 포함 {w_hit}/{n} = {w_hit / n:.1%} · "
               f"자음열 Top-{a.k} 포함 {s_hit}/{n} = {s_hit / n:.1%}")
         miss = pd.Series([w for w in why if w != "hit"]).value_counts()
         print("  놓친 이유: " + (", ".join(f"{k} {v}" for k, v in miss.items()) if len(miss) else "없음"))
-        print(f"  가짜 단어(실제 단어가 없는데 나온 후보): {int((df.truth == '').sum())}개")
+        print(f"  가짜 단어(실제 단어가 없는데 나온 후보): {int(((df.truth == '') & (df.excluded == 0)).sum())}개")
     if a.csv and len(df):
         df.to_csv(a.csv, index=False, encoding="utf-8-sig")
         print(f"저장: {a.csv}")

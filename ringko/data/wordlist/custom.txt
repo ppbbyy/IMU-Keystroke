@@ -1,0 +1,12 @@
+# custom.txt : extra candidate words (names + out-of-dictionary) for brute-force
+#   - one word per line, Hangul only, UTF-8
+#   - lines starting with # are ignored; so are digits / ASCII / spaces
+#   - words with double consonants (ㄲㄸㅃㅆㅉ) or ㅒ/ㅖ are auto-skipped (need Shift)
+#   - usage: python scripts/decode_free.py <session> --add-words data/wordlist/custom.txt
+#   - replace the examples below with the target's likely names / nicknames / OOV words
+서준
+하윤
+자기야
+우리집
+보고싶어
+사랑해

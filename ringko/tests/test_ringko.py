@@ -514,6 +514,26 @@ def test_population_profile():
     assert abs(moment_scale(tr, pri, noise=True) - 0.9) < 0.08 < moment_scale(tr, pri, noise=False) - 0.9
 
 
+def test_load_wordlist():
+    """단어 목록 로더: .csv는 '단어' 열만, .txt는 '#' 줄 빼고 한글만. 비번 보강 사전을 사전에 더하면 그 단어가 후보로 뜬다."""
+    from ringko.decode import Lexicon, load_wordlist, open_vocab
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        (d / "c.csv").write_text("단어,자음열,음절수,카테고리\n카카오,ㅋㅋㅇ,3,서비스명\n배민,ㅂㅁㄴ,2,서비스명\n11번가,,,x\n",
+                                 encoding="utf-8-sig")
+        assert load_wordlist(d / "c.csv") == ["카카오", "배민", "11번가"]   # 로더는 '단어' 열을 그대로, 입력가능 판정은 open_vocab
+        (d / "t.txt").write_text("# 주석은 무시\n배민 토스\n디스코드\n", encoding="utf-8")
+        assert load_wordlist(d / "t.txt") == ["배민", "토스", "디스코드"]
+        (d / "h.csv").write_text("네이버\n다음\n", encoding="utf-8")       # 머리글 없는 csv = 첫 열이 단어
+        assert load_wordlist(d / "h.csv") == ["네이버", "다음"]
+    base = dict(open_vocab())
+    assert "배민" not in base                                            # 일반 사전엔 없음
+    v = dict(open_vocab(extra_words=["배민", "11번가"]))
+    assert "배민" in v and "11번가" not in v                             # 숫자 섞인 단어는 open_vocab이 제외
+    lex = Lexicon(open_vocab(extra_words=["배민"]))
+    assert "배민" in {w for lst in lex.by_len[len(to_consonant_keys("배민"))].values() for w, _ in lst}
+
+
 def test_unwrap_and_gaps():
     u = Unwrapper()
     out = [u(t) for t in [(1 << 32) - 10, (1 << 32) - 2, 5, 100]]
